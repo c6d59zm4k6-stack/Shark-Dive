@@ -6,7 +6,7 @@
    IMPORTANT: bump CACHE_NAME any time you update the game files and push a
    new version. Browsers keep old service workers running until all tabs are
    closed, and the cache name is what forces a clean break to the new files. */
-const CACHE_NAME = "shark-life-v5";
+const CACHE_NAME = "shark-life-v6";
 
 // Same-origin files that must always be available offline.
 const PRECACHE_URLS = [
@@ -32,6 +32,14 @@ self.addEventListener("activate", (event) => {
       Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
+});
+
+// Lets the page ask THIS running service worker instance what version it is,
+// so the on-screen tag always reflects the actual controller, not a guess.
+self.addEventListener("message", (event) => {
+  if (event.data === "GET_VERSION") {
+    event.source.postMessage({ type: "VERSION", version: CACHE_NAME });
+  }
 });
 
 self.addEventListener("fetch", (event) => {

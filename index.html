@@ -154,6 +154,11 @@
     background:radial-gradient(circle at 35% 30%, #ffe07a, #f0912b);
     box-shadow:0 2px 0 rgba(6,70,72,0.9), 0 4px 10px rgba(0,0,0,0.4), 0 0 0 6px rgba(255,224,122,0.5);
   }
+  #boostLabel{
+    pointer-events:none;
+    -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none;
+    -webkit-touch-callout:none;
+  }
   .boostbtn.empty{ opacity:0.4; }
   .announce{
     position:absolute; top:34%; left:50%; transform:translate(-50%,-50%) scale(0.5);
@@ -449,7 +454,7 @@
     </div>
     <button class="btn" id="chooseSharkBtn">Choose Your Shark →</button>
     <button class="btn secondary" id="journalBtnStart">📖 Ocean Journal</button>
-    <div class="version-tag">Build 2026-08-02</div>
+    <div class="version-tag" id="versionTag">Dev preview (no service worker)</div>
   </div>
 </div>
 
@@ -3651,10 +3656,34 @@ document.getElementById('journalCloseBtn').onclick = ()=> document.getElementByI
 initGlowLayer();
 loadJournal();
 </script>
+
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./sw.js").catch((e) => console.warn("SW registration failed:", e));
+
+    // Ask whichever service worker is ACTUALLY controlling this page load for
+    // its cache name, and show that directly — this is the real answer to
+    // "am I looking at a cached version," since it reports the live state
+    // rather than a string baked into (possibly stale) HTML.
+    const tag = document.getElementById('versionTag');
+    function reportVersion(){
+      if(!tag) return;
+      if(navigator.serviceWorker.controller){
+        navigator.serviceWorker.controller.postMessage('GET_VERSION');
+      } else {
+        tag.textContent = "PWA: no service worker controlling this page yet (try reloading)";
+      }
+    }
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if(e.data && e.data.type === 'VERSION' && tag){
+        tag.textContent = "PWA cache: " + e.data.version;
+      }
+    });
+    navigator.serviceWorker.ready.then(reportVersion);
+    // controllerchange fires when a new SW takes over an already-open page —
+    // re-check so the tag updates without needing a manual reload
+    navigator.serviceWorker.addEventListener('controllerchange', reportVersion);
   });
 }
 </script>

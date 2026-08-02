@@ -86,6 +86,14 @@ re-fetching files it already has. Bumping the name forces it to fetch fresh
 copies and discard the old cache (the `activate` handler in `sw.js` already
 deletes old-named caches automatically).
 
+**How to check which version is actually running:** the start screen shows
+a line like `PWA cache: shark-life-v6`. This isn't a string I type by hand —
+the page asks the live service worker directly what its `CACHE_NAME` is and
+displays whatever it answers. So if you bump the cache name and push an
+update, this tag is the fastest way to confirm a device has actually picked
+up the new version versus still running an old cached one. If it ever shows
+"no service worker controlling this page yet," reload the page once.
+
 ## Notes
 
 - Three.js and the Google Fonts used by the game load from public CDNs
