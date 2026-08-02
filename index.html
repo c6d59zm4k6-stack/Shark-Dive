@@ -28,7 +28,7 @@
     --ink:#062033;
     --paper:#fbf5e6;
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none;}
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;}
   html,body{margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:var(--deep); font-family:'Nunito',sans-serif;}
   #stage{position:fixed; inset:0; touch-action:none; filter:contrast(1.22) saturate(1.4) brightness(1.03);}
   canvas{display:block;}
@@ -72,6 +72,7 @@
     border:3px solid #fff;
     box-shadow:0 4px 0 rgba(4,60,60,0.7), 0 6px 14px rgba(0,0,0,0.4);
     text-shadow:0 2px 3px rgba(0,0,0,0.45);
+    min-width:0; max-width:40vw; flex-shrink:1;
   }
   .timer{
     font-family:'Fredoka',sans-serif; font-weight:700; font-size:30px; color:#fff;
@@ -80,12 +81,13 @@
     border:3px solid #fff;
     box-shadow:0 5px 0 rgba(150,60,0,0.8), 0 7px 16px rgba(0,0,0,0.45);
     -webkit-text-stroke:2.5px rgba(120,40,0,0.55); paint-order:stroke fill;
+    flex-shrink:0;
   }
   .timer #timerNum{ display:inline-block; }
   .timer.urgent{ background:linear-gradient(180deg,#ff5f52,#c62828); animation:timerPulse 0.5s ease-in-out infinite; }
   @keyframes timerPulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.1); } }
   .healthwrap{
-    flex:1; height:26px; background:rgba(4,18,30,0.9); border-radius:14px; overflow:hidden;
+    flex:1 1 40px; min-width:40px; height:26px; background:rgba(4,18,30,0.9); border-radius:14px; overflow:hidden;
     border:3px solid #fff; position:relative;
     box-shadow:0 4px 0 rgba(2,14,24,0.6), 0 6px 14px rgba(0,0,0,0.4);
   }
@@ -123,6 +125,13 @@
     box-shadow:0 4px 0 rgba(2,14,24,0.65), 0 6px 14px rgba(0,0,0,0.4);
     text-shadow:0 2px 3px rgba(0,0,0,0.7);
   }
+  /* row2 replaces the old scheme of two independently absolute-positioned
+     boxes guessing a hardcoded pixel offset from the viewport top (which
+     drifted out of sync with row1's actual height). Now missionbox and the
+     gold-rush/scores group are real flex children, so they always land
+     right where row1 actually ends, on any device, any orientation. */
+  .row2{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; flex-wrap:wrap; }
+  .row2-right{ display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0; }
 
   .stamina-row{
     position:absolute; bottom:calc(60px + env(safe-area-inset-bottom)); left:calc(16px + env(safe-area-inset-left));
@@ -139,7 +148,7 @@
   .stamina-icon{ font-size:16px; filter:drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }
   .boostbtn{
     position:absolute; bottom:calc(52px + env(safe-area-inset-bottom)); right:calc(18px + env(safe-area-inset-right));
-    width:96px; height:96px; border-radius:50%;
+    width:96px; height:96px; border-radius:50%; z-index:20;
     background:radial-gradient(circle at 35% 30%, #63e6d8, #148a8a);
     color:#04222b; font-family:'Fredoka',sans-serif; font-weight:700; font-size:13px;
     border:4px solid #fff; cursor:pointer; letter-spacing:0.04em; font-size:15px;
@@ -176,7 +185,7 @@
     100%{ opacity:0; transform:translate(-50%,-58%) scale(0.95); }
   }
   .goldrushwrap{
-    position:absolute; top:92px; right:12px; width:132px; height:22px;
+    width:132px; height:22px;
     background:rgba(4,18,30,0.9); border:3px solid rgba(255,255,255,0.85);
     border-radius:12px; overflow:hidden;
     box-shadow:0 4px 0 rgba(2,14,24,0.6), 0 6px 14px rgba(0,0,0,0.4);
@@ -191,7 +200,7 @@
   body.goldrush #colorGrade{ background:radial-gradient(ellipse at 50% 40%, rgba(255,200,80,0.15), rgba(120,60,0,0.4)); }
 
   .missionbox{
-    position:absolute; top:92px; left:12px; display:flex; flex-direction:column; gap:4px;
+    display:flex; flex-direction:column; gap:4px;
     background:linear-gradient(180deg, rgba(14,52,78,0.82), rgba(6,28,45,0.82));
     backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
     border:3px solid rgba(255,255,255,0.85); border-radius:14px; padding:8px 11px;
@@ -226,12 +235,13 @@
 
   /* fact card */
   .factcard{
-    position:absolute; left:50%; bottom:18px; transform:translateX(-50%) translateY(120%);
-    max-width:min(420px, 88vw); background:var(--paper); border-radius:16px; padding:14px 16px;
+    position:absolute; right:14px; top:50%; left:auto;
+    transform:translateX(135%) translateY(-50%);
+    max-width:min(260px, 32vw); background:var(--paper); border-radius:16px; padding:12px 14px;
     box-shadow:0 12px 30px rgba(0,0,0,0.35); transition:transform 0.35s cubic-bezier(.2,.8,.2,1);
-    border:2px solid var(--gold);
+    border:2px solid var(--gold); z-index:12;
   }
-  .factcard.show{ transform:translateX(-50%) translateY(0); }
+  .factcard.show{ transform:translateX(0) translateY(-50%); }
   .factcard .fc-title{ font-family:'Fredoka',sans-serif; font-weight:700; color:var(--teal); font-size:13px; letter-spacing:0.04em; margin-bottom:3px; }
   .factcard .fc-body{ color:var(--ink); font-size:16px; line-height:1.45; }
 
@@ -329,10 +339,24 @@
   ::-webkit-scrollbar-thumb{ background:#c8b98a; border-radius:4px; }
 
   .dstrip{
-    position:absolute; left:0; right:0; bottom:0;
+    position:absolute; left:0; right:0; bottom:0; z-index:8; pointer-events:none;
     display:flex; gap:6px; overflow-x:auto;
     justify-content:flex-start;
     padding:8px calc(10px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+  }
+  /* tilt-control toggle + its diagnostic readout — parked above the stamina
+     bar so it never competes with the discovery-chip strip below it */
+  .tiltbtn{
+    position:fixed; z-index:50;
+    bottom:calc(92px + env(safe-area-inset-bottom)); left:calc(16px + env(safe-area-inset-left));
+    padding:7px 12px; font-size:12px; font-weight:700; border-radius:10px;
+    border:2px solid #fff; background:rgba(0,0,0,0.55); color:#fff; font-family:'Nunito',sans-serif;
+  }
+  .tiltreadout{
+    position:fixed; z-index:50; display:none;
+    bottom:calc(130px + env(safe-area-inset-bottom)); left:calc(16px + env(safe-area-inset-left));
+    padding:4px 8px; font-size:11px; font-family:monospace; border-radius:6px;
+    background:rgba(0,0,0,0.55); color:#7fffd4;
   }
   .dchip{
     flex:0 0 auto;
@@ -366,10 +390,10 @@
     .healthnum{ font-size:10px; -webkit-text-stroke:1.8px rgba(0,0,0,0.55); }
     .scorepill{ font-size:12px; padding:3px 8px; border-width:2px; gap:3px; }
 
-    .missionbox{ top:60px; padding:5px 8px; gap:2px; max-width:min(170px,42vw); border-width:2px; }
+    .missionbox{ padding:5px 8px; gap:2px; max-width:min(170px,42vw); border-width:2px; }
     .mrow{ font-size:10.5px; }
     .mprog{ font-size:9px; }
-    .goldrushwrap{ top:60px; width:96px; height:16px; border-width:2px; }
+    .goldrushwrap{ width:96px; height:16px; border-width:2px; }
     .goldrushwrap .grlabel{ font-size:8.5px; }
 
     .stamina-row{ bottom:calc(8px + env(safe-area-inset-bottom)); left:calc(10px + env(safe-area-inset-left)); }
@@ -388,9 +412,12 @@
     .dchip-label{ font-size:7.5px; }
     .dchip-name{ font-size:10px; }
 
-    .factcard{ padding:8px 12px; bottom:6px; max-width:min(360px,72vw); }
+    .factcard{ padding:8px 12px; max-width:min(220px,30vw); right:10px; }
     .factcard .fc-title{ font-size:10px; }
     .factcard .fc-body{ font-size:11.5px; line-height:1.3; }
+
+    .tiltbtn{ bottom:calc(34px + env(safe-area-inset-bottom)); left:calc(10px + env(safe-area-inset-left)); padding:5px 9px; font-size:10px; }
+    .tiltreadout{ bottom:calc(58px + env(safe-area-inset-bottom)); left:calc(10px + env(safe-area-inset-left)); font-size:9px; }
 
     .combo{ top:44px; font-size:22px; }
     .announce{ font-size:clamp(22px,6vw,34px); -webkit-text-stroke:3.5px rgba(4,20,32,0.9); }
@@ -421,16 +448,20 @@
       <div class="healthwrap"><div class="healthbar" id="healthbar"></div><span class="healthnum" id="healthNum">100/100</span></div>
       <div class="timer" id="timer">⏱️ <span id="timerNum">2:00</span></div>
     </div>
-    <div class="scores">
-      <div class="scorepill">🎣 <span id="hunterScore">0</span></div>
-      <div class="scorepill">🧭 <span id="explorerScore">0</span></div>
-      <div class="scorepill">😈 <span id="chaosScore">0</span></div>
+    <div class="row2">
+      <div class="missionbox" id="missionBox"></div>
+      <div class="row2-right">
+        <div class="goldrushwrap" id="goldrushwrap"><div class="goldrushbar" id="goldrushbar"></div><span class="grlabel">⭐ GOLD RUSH</span></div>
+        <div class="scores">
+          <div class="scorepill">🎣 <span id="hunterScore">0</span></div>
+          <div class="scorepill">🧭 <span id="explorerScore">0</span></div>
+          <div class="scorepill">😈 <span id="chaosScore">0</span></div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="stamina-row"><span class="stamina-icon">⚡</span><div class="staminawrap"><div class="staminabar" id="staminabar"></div></div></div>
   <button class="boostbtn" id="boostBtn"><span id="boostLabel">SPRINT</span></button>
-  <div class="goldrushwrap" id="goldrushwrap"><div class="goldrushbar" id="goldrushbar"></div><span class="grlabel">⭐ GOLD RUSH</span></div>
-  <div class="missionbox" id="missionBox"></div>
   <div class="announce" id="announce"></div>
   <div class="combo" id="comboEl"></div>
   <div class="frenzy-banner" id="frenzyBanner"></div>
@@ -515,9 +546,13 @@ window.addEventListener('error', (e)=>{
 
 const ENTITY_TYPES = {
   fish_small:    { emoji:"🐟", band:"mid", kind:"prey",  cat:"hunter",   points:10, radius:1.1, name:"Reef Fish",       fact:"Small reef fish often swim in schools of thousands — safety in numbers confuses predators." },
-  fish_colorful: { emoji:"🐠", band:"mid", kind:"prey",  cat:"hunter",   points:15, radius:1.1, name:"Blue Tang",       fact:"Colorful reef fish like this one can change their brightness slightly depending on their mood." },
+  fish_colorful: { emoji:"🐠", band:"floor", kind:"prey",  cat:"hunter",   points:15, radius:1.1, name:"Blue Tang",       fact:"Colorful reef fish like this one can change their brightness slightly depending on their mood." },
+  fish_silver:   { emoji:"🐟", band:"upper", kind:"prey",  cat:"hunter",   points:10, radius:1.0, name:"Silverside",      fact:"Silversides school in dense, shimmering balls that scatter and instantly reform when a predator strikes." },
+  fish_striped:  { emoji:"🐠", band:"mid", kind:"prey",  cat:"hunter",   points:12, radius:1.1, name:"Sergeant Major",  fact:"The sergeant major fish is named for the bold stripes on its side, like a military rank insignia." },
+  fish_clown:    { emoji:"🐠", band:"floor", kind:"prey", cat:"hunter",   points:14, radius:1.0, name:"Clownfish",       fact:"Clownfish are immune to the sting of the sea anemones they shelter among." },
+  octopus:       { emoji:"🐙", band:"floor", kind:"encounter", cat:"explorer", points:38, radius:1.3, name:"Octopus", discoverOnSpawn:true, mood:"mysterious", fact:"An octopus can change both the color and texture of its skin in under a second to vanish into the reef." },
   seal:          { emoji:"🦭", band:"upper", kind:"prey",  cat:"hunter",   points:30, radius:1.4, name:"Seal",            fact:"Seals are fast, agile swimmers — sharks usually rely on surprise, not speed, to catch one." },
-  turtle:        { emoji:"🐢", band:"mid", kind:"encounter", cat:"explorer", points:25, radius:1.3, name:"Sea Turtle",   fact:"Sea turtles have existed for over 100 million years — they swam alongside actual dinosaurs.", onHitOnly:true },
+  turtle:        { emoji:"🐢", band:"upper", kind:"encounter", cat:"explorer", points:25, radius:1.3, name:"Sea Turtle",   fact:"Sea turtles have existed for over 100 million years — they swam alongside actual dinosaurs.", onHitOnly:true },
   dolphin:       { emoji:"🐬", band:"upper", kind:"encounter", cat:"explorer", points:20, radius:1.3, name:"Dolphin", boost:true, fact:"Dolphins sometimes team up to fight off sharks by ramming them with their snouts.", onHitOnly:true },
   jellyfish:     { emoji:"🪼", band:"mid", kind:"hazard", cat:null, damage:12, radius:1.1, name:"Jellyfish", fact:"Some jellyfish are 95% water and have no brain, heart, or bones at all.", onHitOnly:true },
   jellyfish_rare:{ emoji:"🪼", band:"mid", kind:"hazard", cat:null, damage:22, radius:1.1, name:"Box Jellyfish", rare:true, tint:"#ff5b4d", fact:"The box jellyfish is considered one of the most venomous marine animals on Earth.", onHitOnly:true },
@@ -530,10 +565,14 @@ const ENTITY_TYPES = {
   treasure:      { emoji:"💰", band:"floor", kind:"encounter", cat:"explorer", points:40, radius:1.2, name:"Sunken Treasure", fact:"Thousands of shipwrecks around the world have never been found — some still holding real treasure.", onHitOnly:true },
   squid_giant:   { emoji:"🦑", band:"floor", kind:"encounter", cat:"explorer", points:50, radius:1.6, name:"Giant Squid", rare:true, discoverOnSpawn:true, mood:"mysterious", fact:"The giant squid has the largest eyes of any animal on Earth — about the size of a dinner plate." },
   reef_pillar:   { emoji:"🪨", band:"mid", kind:"hazard", cat:null, damage:16, radius:2.0, name:"Reef Pillar", obstacle:true, fact:"Coral pillars take centuries to grow — sharks weave through reef mazes with ease.", onHitOnly:true },
-  sea_mine:      { emoji:"💣", band:"mid", kind:"hazard", cat:null, damage:34, radius:1.2, name:"Sea Mine", obstacle:true, fact:"Old sea mines still drift in some oceans decades after being laid.", onHitOnly:true },
+  sea_mine:      { emoji:"💣", band:"wide", kind:"hazard", cat:null, damage:34, radius:1.2, name:"Sea Mine", obstacle:true, fact:"Old sea mines still drift in some oceans decades after being laid.", onHitOnly:true },
   hook_line:     { emoji:"🪝", band:"mid", kind:"hazard", cat:null, damage:22, radius:0.9, name:"Baited Hook", obstacle:true, fact:"Longline fishing sets thousands of baited hooks — a major danger to real sharks.", onHitOnly:true },
-  hammerhead:    { emoji:"🦈", band:"mid", kind:"encounter", cat:"explorer", points:45, radius:1.6, name:"Hammerhead Shark", rare:true, discoverOnSpawn:true, mood:"curious", fact:"A hammerhead's oddly-shaped head spreads its eyes apart for nearly 360° vision." }
+  hammerhead:    { emoji:"🦈", band:"floor", kind:"encounter", cat:"explorer", points:45, radius:1.6, name:"Hammerhead Shark", rare:true, discoverOnSpawn:true, mood:"curious", fact:"A hammerhead's oddly-shaped head spreads its eyes apart for nearly 360° vision." }
 };
+// Single source of truth for "which entity types school and get the wider
+// catch tolerance" — used in place of repeating the type-name list at every
+// check, so adding another schooling species is a one-line change.
+const SCHOOL_FISH_TYPES = ["fish_small","fish_colorful","fish_silver","fish_striped","fish_clown"];
 
 const STORIES = [
   { id:"storm", icon:"🌀", name:"Tropical Storm", tagline:"The water is churning. Stay sharp out there.",
@@ -625,6 +664,23 @@ let scene, camera, renderer, clock;
 let shark, jaw, tailUpper, tailLower, pecL, pecR, dorsal;
 let swimTime = 0;
 let bubbles = [], godrays = [], kelps = [], worldProps = [], anemones = [];
+// Reef-patch anchors: purely-decorative seabed life (starfish, urchins,
+// anemones, brain coral, sponges, fan coral) picks its x position from a
+// small shared set of anchors instead of independent uniform-random x, so
+// it reads as loose "patches" of reef life rather than scattered dots.
+// Deliberately NOT used for solid/hazard props (boulders, branching coral,
+// kelp, stone ridges) — those keep their original wide, even spread so
+// obstacle density/pacing across the lane is unaffected.
+let reefPatchX = [];
+// Depth-tinted water: each story keeps its own fog hue near the surface,
+// but blends toward this shared dark "abyss" tone as the shark dives —
+// giving real depth without erasing the per-biome color variety.
+const ABYSS_TINT = new THREE.Color(0x081c30);
+let storyFogBase = null;
+function reefClusterX(spread){
+  const a = reefPatchX[Math.floor(Math.random()*reefPatchX.length)] || 0;
+  return a + (Math.random()-0.5)*spread;
+}
 let floorTex = null, surfaceTex = null, bubbleTexShared = null;
 let resizeListenersBound = false;
 let wake = [], wakeTimer = 0;
@@ -669,6 +725,10 @@ const SURFACE_Y = 10;
 let sharkPos = {x:0, y:1.5};
 let targetPos = {x:0, y:1.5};
 let pointerActive = false, pointerX=0, pointerY=0;
+// Tilt (device-motion) steering: an alternative to touch-drag. Only affects
+// steering in normal "playing" mode — touch stays fully live for frenzy
+// slicing and the sprint button either way.
+let tiltActive = false, tiltBaseBeta = null, tiltBaseGamma = null, tiltX = 0, tiltY = 0;
 
 let mode = "start"; // start | story | playing | frenzy | end
 let timeLeft = RUN_SECONDS;
@@ -703,6 +763,10 @@ let SHARK_CRUISE = 9, SHARK_SPRINT = 1.85;
 const SPEED_TABLE = {
   fish_small:     { cruise:3.2, sprint:8.2,  alert:15, dir:"away",   lat:1.5, stam:2.6 },
   fish_colorful:  { cruise:2.9, sprint:7.6,  alert:14, dir:"away",   lat:1.6, stam:2.4 },
+  fish_silver:    { cruise:3.5, sprint:8.8,  alert:15, dir:"away",   lat:1.8, stam:2.2 },
+  fish_striped:   { cruise:3.0, sprint:7.8,  alert:14, dir:"away",   lat:1.5, stam:2.5 },
+  fish_clown:     { cruise:2.6, sprint:6.8,  alert:13, dir:"away",   lat:1.4, stam:2.3 },
+  octopus:        { cruise:1.6, sprint:5.5,  alert:11, dir:"away",   lat:1.6, stam:1.4 },
   seal:           { cruise:5.0, sprint:11.0, alert:18, dir:"away",   lat:1.3, stam:3.2 },
   turtle:         { cruise:1.4, sprint:2.8,  alert:10, dir:"away",   lat:0.5, stam:2.0 },
   dolphin:        { cruise:6.2, sprint:12.0, alert:20, dir:"away",   lat:1.1, stam:4.0 },
@@ -837,7 +901,10 @@ function initScene(storyDef){
   stage.innerHTML = "";
 
   scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(storyDef.fog, storyDef.dark?14:19, storyDef.dark?62:86);
+  // FogExp2 (exponential) reads more like water than linear fog's hard-edged
+  // falloff. Density tuned to roughly match the old near/far distances.
+  scene.fog = new THREE.FogExp2(storyDef.fog, storyDef.dark ? 0.03 : 0.021);
+  storyFogBase = new THREE.Color(storyDef.fog);
   scene.background = makeSkyTexture(storyDef.top, storyDef.sky);
 
   renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false, preserveDrawingBuffer:true });
@@ -846,6 +913,9 @@ function initScene(storyDef){
   stage.appendChild(renderer.domElement);
 
   camera = new THREE.PerspectiveCamera(62, window.innerWidth/window.innerHeight, 0.1, 200);
+  computeBaseFov();
+  computeSteerRangeX();
+  camera.fov = baseFov;
   camera.position.set(0, 4, 9);
 
   // Low ambient + strong key = real light/shadow separation on every creature.
@@ -892,6 +962,7 @@ function initScene(storyDef){
 
   // ---- scrolling world props (recycled as they pass behind the camera) ----
   worldProps = [];
+  reefPatchX = Array.from({length:13}, ()=> (Math.random()-0.5)*110);
   const rockColors = [0xff7f50, 0x2ec4a0, 0xb26ff0, 0xffc247, 0x3ad9b0, 0xff5f6d];
   const coralColors = [0xff6b4a, 0xffd93d, 0xff4f9a, 0x4fd6ff, 0xc77dff, 0x5fff9f];
 
@@ -906,18 +977,18 @@ function initScene(storyDef){
   }
 
   // boulders — these are SOLID
-  for(let i=0;i<30;i++){
+  for(let i=0;i<42;i++){
     const s = 0.7 + Math.random()*2.2;
     const mat = new THREE.MeshStandardMaterial({ color: rockColors[Math.floor(Math.random()*rockColors.length)], roughness:0.9, flatShading:true });
     const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s,0), mat);
-    rock.position.set((Math.random()-0.5)*90, FLOOR_Y-0.2+Math.random()*0.6, 0);
+    rock.position.set((Math.random()-0.5)*140, FLOOR_Y-0.2+Math.random()*0.6, 0);
     rock.rotation.set(Math.random(),Math.random(),Math.random());
     addProp(rock, -Math.random()*PROP_DEPTH, "rock", null, s);
     worldProps[worldProps.length-1].dmg = 12;
   }
 
   // branching coral (stacked cones) — solid too
-  for(let i=0;i<22;i++){
+  for(let i=0;i<28;i++){
     const g = new THREE.Group();
     const col = coralColors[Math.floor(Math.random()*coralColors.length)];
     const mat = new THREE.MeshStandardMaterial({ color:col, roughness:0.85, flatShading:true });
@@ -931,30 +1002,30 @@ function initScene(storyDef){
       arm.rotation.z = (Math.random()-0.5)*0.6;
       g.add(arm);
     }
-    g.position.set((Math.random()-0.5)*34, FLOOR_Y, 0);
+    g.position.set((Math.random()-0.5)*95, FLOOR_Y, 0);
     g.userData.topY = FLOOR_Y + tallest;
     addProp(g, -Math.random()*PROP_DEPTH, "coral", null, 1.2);
     worldProps[worldProps.length-1].dmg = 8;
   }
 
   // fan coral (flat discs)
-  for(let i=0;i<14;i++){
+  for(let i=0;i<26;i++){
     const col = coralColors[Math.floor(Math.random()*coralColors.length)];
     const mat = new THREE.MeshStandardMaterial({ color:col, roughness:0.9, side:THREE.DoubleSide });
     const fan = new THREE.Mesh(new THREE.CircleGeometry(1+Math.random()*1.2, 9, 0, Math.PI), mat);
-    fan.position.set((Math.random()-0.5)*34, FLOOR_Y+0.5, 0);
+    fan.position.set(reefClusterX(9), FLOOR_Y+0.5, 0);
     fan.rotation.y = Math.random()*Math.PI;
     addProp(fan, -Math.random()*PROP_DEPTH, "fan");
   }
 
   // kelp stalks (sway independently)
   kelps = [];
-  for(let i=0;i<26;i++){
+  for(let i=0;i<38;i++){
     const h = 3+Math.random()*5.5;
     const kelpMat = new THREE.MeshStandardMaterial({ color: 0x2f8f5a + Math.floor(Math.random()*0x001a00), roughness:1 });
     const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.2,h,6), kelpMat);
     stalk.geometry.translate(0,h/2,0);
-    stalk.position.set((Math.random()-0.5)*85, FLOOR_Y, 0);
+    stalk.position.set((Math.random()-0.5)*130, FLOOR_Y, 0);
     stalk.userData.topY = FLOOR_Y + h;
     addProp(stalk, -Math.random()*PROP_DEPTH, "kelp", null, 0.75);
     worldProps[worldProps.length-1].dmg = 6;
@@ -966,7 +1037,7 @@ function initScene(storyDef){
 
   // starfish — flat, five-armed, resting directly on the sand
   const starfishCols = [0xff8a5c, 0xffb347, 0xe0668a, 0xc9563f];
-  for(let i=0;i<16;i++){
+  for(let i=0;i<28;i++){
     const s = 0.7+Math.random()*0.7;
     const col = starfishCols[Math.floor(Math.random()*starfishCols.length)];
     const starMat = mat(col, 0.55);
@@ -982,12 +1053,12 @@ function initScene(storyDef){
     core.scale.y = 0.4;
     star.add(core);
     star.rotation.y = Math.random()*Math.PI*2;
-    star.position.set((Math.random()-0.5)*34, FLOOR_Y+0.08, 0);
+    star.position.set(reefClusterX(9), FLOOR_Y+0.08, 0);
     addProp(star, -Math.random()*PROP_DEPTH, "deco");
   }
 
   // sea urchins — spiky dark balls tucked among the rocks
-  for(let i=0;i<8;i++){
+  for(let i=0;i<16;i++){
     const s = 0.45+Math.random()*0.35;
     const urchinMat = mat(0x241a30, 0.4);
     const urchin = new THREE.Group();
@@ -1001,14 +1072,14 @@ function initScene(storyDef){
       spike.rotateX(Math.PI/2);
       urchin.add(spike);
     }
-    urchin.position.set((Math.random()-0.5)*34, FLOOR_Y+s*0.4, 0);
+    urchin.position.set(reefClusterX(9), FLOOR_Y+s*0.4, 0);
     addProp(urchin, -Math.random()*PROP_DEPTH, "deco");
   }
 
   // anemones — soft swaying tentacle clusters, bright against the sand
   const anemoneCols = [0xff6fae, 0xff9d4d, 0x9d6fff, 0x4dd6c9];
   anemones = [];
-  for(let i=0;i<9;i++){
+  for(let i=0;i<16;i++){
     const s = 0.55+Math.random()*0.5;
     const col = anemoneCols[Math.floor(Math.random()*anemoneCols.length)];
     const aMat = mat(col, 0.4);
@@ -1022,7 +1093,7 @@ function initScene(storyDef){
       t.position.set(Math.cos(a)*s*0.35, 0, Math.sin(a)*s*0.35);
       base.add(t); tentacles.push(t);
     }
-    base.position.set((Math.random()-0.5)*34, FLOOR_Y, 0);
+    base.position.set(reefClusterX(9), FLOOR_Y, 0);
     addProp(base, -Math.random()*PROP_DEPTH, "anemone", null);
     const ref = worldProps[worldProps.length-1];
     ref.tentacles = tentacles; ref.phase2 = Math.random()*10;
@@ -1030,7 +1101,7 @@ function initScene(storyDef){
   }
 
   // brain coral — bumpy dome clusters, greenish-brown
-  for(let i=0;i<10;i++){
+  for(let i=0;i<18;i++){
     const s = 1.0+Math.random()*1.1;
     const brainMat = mat(0x7a9c5e, 0.6);
     const brain = new THREE.Group();
@@ -1039,7 +1110,7 @@ function initScene(storyDef){
       bump.position.set((Math.random()-0.5)*s*1.1, Math.random()*s*0.15, (Math.random()-0.5)*s*1.1);
       brain.add(bump);
     }
-    brain.position.set((Math.random()-0.5)*34, FLOOR_Y, 0);
+    brain.position.set(reefClusterX(10), FLOOR_Y, 0);
     addProp(brain, -Math.random()*PROP_DEPTH, "deco");
   }
 
@@ -1047,7 +1118,7 @@ function initScene(storyDef){
   // Tall and thin (not squat) so the silhouette reads as tubes, not a blob,
   // with a dark rim at the open top to sell the "hollow" look from a distance.
   const spongeCols = [0xffb347, 0xff8a5c, 0xd6a24a];
-  for(let i=0;i<11;i++){
+  for(let i=0;i<20;i++){
     const col = spongeCols[Math.floor(Math.random()*spongeCols.length)];
     const spongeMat = mat(col, 0.55);
     const rimMat = mat(0x5a3a1c, 0.7);
@@ -1067,7 +1138,7 @@ function initScene(storyDef){
       rim.position.set(tube.position.x, h, tube.position.z);
       cluster.add(rim);
     }
-    cluster.position.set((Math.random()-0.5)*34, FLOOR_Y, 0);
+    cluster.position.set(reefClusterX(9), FLOOR_Y, 0);
     tubes.forEach(t=>addOutline(cluster, t, 1.12));
     addProp(cluster, -Math.random()*PROP_DEPTH, "deco");
   }
@@ -1076,14 +1147,14 @@ function initScene(storyDef){
   // bright algae caps, mirroring how the reference lights its boulders.
   const stoneCols = [0xc9b9a3, 0xd6c7ae, 0xb8a894, 0xe0d2bb];
   const capCols   = [0x5fd97a, 0x49c46a, 0x7ae88f];
-  for(let i=0;i<16;i++){
-    const s = 3.0+Math.random()*4.2;
+  for(let i=0;i<20;i++){
+    const s = 3.2+Math.random()*5.2;
     const stoneMat = new THREE.MeshStandardMaterial({
       color: stoneCols[Math.floor(Math.random()*stoneCols.length)],
       roughness:0.92, flatShading:true          // facets catch the key light
     });
     const far = new THREE.Mesh(new THREE.DodecahedronGeometry(s,0), stoneMat);
-    far.position.set((Math.random()-0.5)*52, FLOOR_Y + s*0.68, 0);
+    far.position.set((Math.random()-0.5)*100, FLOOR_Y + s*0.68, 0);
     far.rotation.set(Math.random(),Math.random(),Math.random());
 
     // bright algae cap on top — the strong hue break that makes it pop
@@ -1175,10 +1246,39 @@ function sizeGlowLayer(){
   glowCanvas.height = Math.round(window.innerHeight/6);
 }
 
+// The world's content density was tuned around a portrait-ish view. Three.js's
+// fov is the VERTICAL field of view — at a fixed value, a wide (landscape)
+// aspect ratio reveals a much WIDER horizontal slice than a tall (portrait)
+// one, for the same content density, which is exactly why landscape felt
+// emptier: same world, just showing more of the (mostly bare) sides of it.
+// Cap the horizontal reveal instead, narrowing vertical fov as aspect grows.
+let baseFov = 62;
+// The wider landscape view revealed a lot of water the shark could never
+// actually reach, since steering range was a fixed portrait-tuned lane
+// regardless of orientation. Widen it somewhat in landscape — not all the
+// way to the edges of view, just enough to feel less boxed in.
+let steerRangeX = 6.5;
+function computeSteerRangeX(){
+  steerRangeX = (window.innerWidth/window.innerHeight > 1) ? 10.5 : 6.5;
+}
+function computeBaseFov(){
+  const aspect = window.innerWidth/window.innerHeight;
+  const NOMINAL_V = 76, MAX_H = 104;
+  const nominalH = 2*Math.atan(Math.tan(NOMINAL_V*Math.PI/360)*aspect)*180/Math.PI;
+  if(nominalH > MAX_H){
+    const halfH = MAX_H*Math.PI/360;
+    baseFov = 2*Math.atan(Math.tan(halfH)/aspect)*180/Math.PI;
+  } else {
+    baseFov = NOMINAL_V;
+  }
+}
+
 function onResize(){
   if(!renderer) return;
   renderer.setSize(window.innerWidth, window.innerHeight);
   camera.aspect = window.innerWidth/window.innerHeight;
+  computeBaseFov();
+  computeSteerRangeX();
   camera.updateProjectionMatrix();
   sizeGlowLayer();
 }
@@ -1229,11 +1329,13 @@ function buildShark(){
   const T = selectedShark;
 
   const skinTex = makeSkinTexture(T.color, 0x1c2226);
-  const bodyMat = new THREE.MeshPhysicalMaterial({ color:T.color, map:skinTex, roughness:0.5, clearcoat:0.55, clearcoatRoughness:0.3 });
+  // Matte "wet skin" finish instead of polished plastic: higher roughness,
+  // lower/rougher clearcoat so it keeps a faint sheen without looking lacquered.
+  const bodyMat = new THREE.MeshPhysicalMaterial({ color:T.color, map:skinTex, roughness:0.82, clearcoat:0.1, clearcoatRoughness:0.75 });
   sharkBodyMat = bodyMat;
   sharkBaseColor.setHex(T.color);
-  const bellyMat = new THREE.MeshPhysicalMaterial({ color:0xe8e4d9, roughness:0.5, clearcoat:0.6, clearcoatRoughness:0.25 });
-  const finMat = new THREE.MeshPhysicalMaterial({ color:T.fin, roughness:0.42, clearcoat:0.7, clearcoatRoughness:0.22 });
+  const bellyMat = new THREE.MeshPhysicalMaterial({ color:0xe8e4d9, roughness:0.78, clearcoat:0.12, clearcoatRoughness:0.7 });
+  const finMat = new THREE.MeshPhysicalMaterial({ color:T.fin, roughness:0.7, clearcoat:0.2, clearcoatRoughness:0.6 });
   const darkMat = new THREE.MeshStandardMaterial({ color:0x161616, roughness:0.4 });
   const whiteMat = new THREE.MeshStandardMaterial({ color:0xffffff, roughness:0.3 });
   const sc = T.scale || {x:1,y:1,z:1};
@@ -1284,6 +1386,13 @@ function buildShark(){
   belly.scale.set(0.9*sc.x, 0.5*sc.y, 2.15*sc.z);
   belly.position.set(0,-0.42,0.05);
   shark.add(belly);
+
+  // tail peduncle - tapered connector so the tail reads as growing out of
+  // the body instead of looking stuck directly onto the torso
+  const peduncle = new THREE.Mesh(new THREE.CylinderGeometry(0.16*sc.x, 0.34*sc.x, 1.1*sc.z, 12), bodyMat);
+  peduncle.rotation.x = Math.PI/2;
+  peduncle.position.set(0, 0, 1.85*sc.z);
+  shark.add(peduncle);
 
   // dorsal fin - thin blade
   dorsal = new THREE.Mesh(new THREE.ConeGeometry(0.7,1.5,3), finMat);
@@ -1338,8 +1447,8 @@ function buildShark(){
   }
 
   // mouth line + jaw (opens during bite)
-  jaw = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.35,0.5,10,1,true,0,Math.PI), darkMat);
-  jaw.position.set(0,-0.42,-2.35);
+  jaw = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.4,0.6,10,1,true,0,Math.PI), darkMat);
+  jaw.position.set(0,-0.58,-2.2);
   jaw.rotation.set(Math.PI/2, 0, 0);
   shark.add(jaw);
 
@@ -1692,6 +1801,29 @@ function buildJelly(col, r){
 }
 
 // giant squid: mantle + curling tentacles
+function buildOctopus(r){
+  const g = new THREE.Group();
+  const col = 0xa8563a;
+  // bulbous, rounded mantle — no elongated cone or fins like the squid
+  const mantle = new THREE.Mesh(new THREE.SphereGeometry(r*0.62,12,10), mat(col));
+  mantle.scale.set(1,1.05,0.95);
+  mantle.position.z = -r*0.15;
+  g.add(mantle);
+  const tents = [];
+  for(let i=0;i<8;i++){
+    const a = (i/8)*Math.PI*2;
+    // short, thick, quickly-tapering arms — much stubbier than squid tentacles
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(r*0.13, r*0.025, r*1.15, 6), mat(0xc2643f));
+    t.geometry.translate(0,-r*0.58,0);
+    t.position.set(Math.cos(a)*r*0.32, 0, -r*0.1 + Math.sin(a)*r*0.32);
+    t.rotation.x = -Math.PI/2.3;
+    g.add(t); tents.push({ mesh:t, phase:i });
+  }
+  addEyes(g, r*0.22, -r*0.35, r*0.34, r*0.05);
+  g.userData = { kind:"octopus", tents, speedMul:1 };
+  return g;
+}
+
 function buildSquid(r){
   const g = new THREE.Group();
   const col = 0xd4553f;
@@ -1752,7 +1884,7 @@ function buildPerson(r, isDiver){
   const head = new THREE.Mesh(new THREE.SphereGeometry(r*0.3,10,10), mat(0xf2c396));
   head.position.set(0, r*0.55, -r*0.15);
   g.add(head);
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry ? new THREE.SphereGeometry(r*0.34,10,10) : new THREE.SphereGeometry(r*0.34,10,10), mat(suit));
+  const torso = new THREE.Mesh(new THREE.SphereGeometry(r*0.34,10,10), mat(suit));
   torso.scale.set(0.85,1,1.5);
   g.add(torso);
   const arms = [];
@@ -1914,6 +2046,10 @@ function makeCreature(type){
   switch(type){
     case "fish_small":     return buildFish(0xff9a3c, 0xffd166, r);            // orange
     case "fish_colorful":  return buildFish(0xffd93d, 0xff6f3c, r, { stripes:0xe8442e }); // yellow+red
+    case "fish_silver":    return buildFish(0xcbd8e3, 0x8fa8bd, r);            // silvery blue-grey
+    case "fish_striped":   return buildFish(0xf5f0e6, 0xe4dccb, r, { stripes:0x1a1a1a }); // white+black bars
+    case "fish_clown":     return buildFish(0xff7a1f, 0xffffff, r, { stripes:0xffffff }); // orange+white bands
+    case "octopus":        return buildOctopus(r);
     case "hammerhead":     return buildFish(0xb8c4cc, 0x8fa0aa, r, { hammer:true });   // pale, bright
     case "seal":           return buildSeal(r);
     case "turtle":         return buildTurtle(r);
@@ -1971,6 +2107,12 @@ function animateCreature(ent, t){
     case "squid":
       u.tents.forEach(tt=>{
         tt.mesh.rotation.x = -Math.PI/2.1 + Math.sin(p*0.8 + tt.phase*0.7)*0.35;
+      });
+      break;
+    case "octopus":
+      u.tents.forEach(tt=>{
+        tt.mesh.rotation.x = -Math.PI/2.3 + Math.sin(p*0.45 + tt.phase*1.1)*0.5;
+        tt.mesh.rotation.z = Math.cos(p*0.4 + tt.phase*0.9)*0.25;
       });
       break;
     case "person":
@@ -2041,7 +2183,7 @@ function weightedPick(storyDef){
   const table = [];
   for(const key in ENTITY_TYPES){
     const def = ENTITY_TYPES[key];
-    let w = def.rare ? 0.6 : (def.kind==="hazard" ? 2 : 3);
+    let w = def.rare ? 1.3 : (def.kind==="hazard" ? 2 : 3);
     if(def.obstacle) w = 1.6 * difficulty;          // more obstacles later in the dive
     if(storyDef.weights && storyDef.weights[key]){
       w *= storyDef.weights[key];
@@ -2050,7 +2192,7 @@ function weightedPick(storyDef){
     if(twist){
       if(twist.rareBoost && def.rare) w *= twist.rareBoost;
       if(twist.crowdBoost && def.kind==="chaos") w *= twist.crowdBoost;
-      if(twist.fishBoost && (key==="fish_small"||key==="fish_colorful")) w *= twist.fishBoost;
+      if(twist.fishBoost && SCHOOL_FISH_TYPES.includes(key)) w *= twist.fishBoost;
     }
     table.push({key, w});
   }
@@ -2061,18 +2203,22 @@ function weightedPick(storyDef){
 }
 
 function bandY(band){
+  // Spans the shark's real vertical range (roughly -3 to 9) across four
+  // genuinely distinct depth bands, so different species actually live at
+  // different depths instead of nearly everything clustering mid-water.
   switch(band){
-    case "surface": return SURFACE_Y-1.5 + Math.random()*0.6;   // riding the waterline
-    case "upper":   return 5.5 + Math.random()*2.5;
-    case "floor":   return FLOOR_Y+0.6 + Math.random()*1.2;     // resting on the seabed
-    default:        return 1.5 + Math.random()*5;               // mid water
+    case "surface": return 6.6 + Math.random()*2.2;    // just under the waterline
+    case "upper":   return 3.0 + Math.random()*3.0;    // upper water column
+    case "floor":   return FLOOR_Y+0.6 + Math.random()*1.6;  // hugging the seabed
+    case "wide":    return -2.4 + Math.random()*10.6;  // anywhere at all — e.g. drifting mines
+    default:        return -0.6 + Math.random()*3.0;   // mid water
   }
 }
 
 function spawnEntity(storyDef){
   const type = weightedPick(storyDef);
   const def = ENTITY_TYPES[type];
-  const isSchoolFish = (type==="fish_small" || type==="fish_colorful");
+  const isSchoolFish = SCHOOL_FISH_TYPES.includes(type);
   const count = isSchoolFish ? (6+Math.floor(Math.random()*5)) : 1;
 
   // pick a behaviour: what is this creature doing in the world?
@@ -2082,7 +2228,7 @@ function spawnEntity(storyDef){
   else if(def.obstacle||type==="jellyfish"||type==="jellyfish_rare"||type==="net"||type==="treasure") behaviour = "drift";
   else behaviour = "cross";                                        // crosses your path
 
-  const baseX = (Math.random()-0.5)*22;
+  const baseX = (Math.random()-0.5)*70;
   let baseY = bandY(def.band);
   // obstacles need to sit where they physically belong
   if(type==="reef_pillar")      baseY = FLOOR_Y + 4.5;              // tall column through the water
@@ -2103,7 +2249,7 @@ function spawnEntity(storyDef){
   let anchored = false;
 
   if(type==="boat"){
-    anchored = Math.random() < 0.35;
+    anchored = Math.random() < 0.15;
     if(anchored){
       profile.cruise = 0; profile.sprint = 0; hdg = Math.random()*Math.PI*2;
     } else {
@@ -2128,6 +2274,7 @@ function spawnEntity(storyDef){
 
   for(let i=0;i<count;i++){
     const mesh = makeCreature(type);
+    if(isSchoolFish) mesh.scale.setScalar(0.72 + Math.random()*0.65);   // small-to-large mix within the school
     const x = baseX + (isSchoolFish ? (Math.random()-0.5)*3.4 : 0);
     const y = baseY + (isSchoolFish ? (Math.random()-0.5)*2.0 : 0);
     const z = baseZ + (isSchoolFish ? (Math.random()-0.5)*4.5 : 0);
@@ -2220,7 +2367,7 @@ function showFact(type){
 /* ===================== MISSIONS ===================== */
 
 const MISSION_POOL = [
-  { id:"eat10",    icon:"🐟", text:"Eat 10 fish",              goal:10, bonus:1500, track:(k,t,d)=> k==="eat" && (t==="fish_small"||t==="fish_colorful") },
+  { id:"eat10",    icon:"🐟", text:"Eat 10 fish",              goal:10, bonus:1500, track:(k,t,d)=> k==="eat" && SCHOOL_FISH_TYPES.includes(t) },
   { id:"eat20",    icon:"🍽️", text:"Eat 20 creatures",         goal:20, bonus:2500, track:(k,t,d)=> k==="eat" },
   { id:"seal3",    icon:"🦭", text:"Catch 3 seals",            goal:3,  bonus:2000, track:(k,t,d)=> k==="eat" && t==="seal" },
   { id:"boat2",    icon:"🚤", text:"Raid 2 boats",             goal:2,  bonus:2000, track:(k,t,d)=> k==="eat" && t==="boat" },
@@ -2602,6 +2749,39 @@ function sliceFrenzyObject(o){
 
 /* ============================= INPUT ============================= */
 
+let tiltReadoutEl = null;
+function onDeviceTilt(e){
+  if(e.beta===null || e.gamma===null) return;
+  // First reading after enabling becomes "neutral" — however you're
+  // actually holding the phone at that moment — so there's no need to
+  // hold it flat or at any specific real-world angle.
+  if(tiltBaseBeta===null){ tiltBaseBeta = e.beta; tiltBaseGamma = e.gamma; }
+  const SENS = 22; // degrees of tilt from neutral for full deflection
+  tiltX = Math.max(-1, Math.min(1, (e.gamma - tiltBaseGamma) / SENS));
+  tiltY = Math.max(-1, Math.min(1, (e.beta  - tiltBaseBeta ) / SENS));
+  if(tiltReadoutEl) tiltReadoutEl.textContent = "β "+e.beta.toFixed(0)+"° γ "+e.gamma.toFixed(0)+"°";
+}
+
+function setTiltActive(on){
+  tiltActive = on;
+  if(on){
+    tiltBaseBeta = null; tiltBaseGamma = null; // recalibrate neutral each time it's turned on
+    window.addEventListener('deviceorientation', onDeviceTilt);
+  } else {
+    window.removeEventListener('deviceorientation', onDeviceTilt);
+    tiltX = 0; tiltY = 0;
+  }
+}
+
+// iOS 13+ requires an explicit permission prompt triggered by a user
+// gesture; other platforms expose the event with no prompt at all.
+function requestTiltPermission(){
+  if(typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function"){
+    return DeviceOrientationEvent.requestPermission();
+  }
+  return Promise.resolve("granted");
+}
+
 function screenToNorm(clientX, clientY){
   return {
     x: (clientX/window.innerWidth)*2-1,
@@ -2750,6 +2930,12 @@ function spawnTurnSwish(strength){
 function updateAtmosphere(dt){
   swimTime += dt;
 
+  // depth-tinted water: 0 near the surface, 1 near the seafloor
+  if(scene.fog && storyFogBase){
+    const depthFrac = Math.max(0, Math.min(1, (SURFACE_Y - sharkPos.y) / (SURFACE_Y - FLOOR_Y)));
+    scene.fog.color.copy(storyFogBase).lerp(ABYSS_TINT, depthFrac*0.6);
+  }
+
   // how fast the world is flowing past right now
   const flow = (mode==="playing") ? currentFlow : 0;
 
@@ -2771,6 +2957,10 @@ function updateAtmosphere(dt){
     if(p.kind==="kelp"){
       p.mesh.rotation.z = Math.sin(swimTime*0.8+p.phase)*0.14;
     }
+    if(p.kind==="coral"){
+      p.mesh.rotation.z = Math.sin(swimTime*0.7+p.phase)*0.24;
+      p.mesh.rotation.x = Math.cos(swimTime*0.55+p.phase)*0.1;
+    }
     if(p.kind==="anemone" && p.tentacles){
       p.tentacles.forEach((t,i)=>{
         t.rotation.x = Math.sin(swimTime*1.4+p.phase2+i*0.6)*0.35;
@@ -2779,7 +2969,17 @@ function updateAtmosphere(dt){
     }
     if(p.mesh.position.z > 14){
       p.mesh.position.z -= PROP_DEPTH;
-      p.mesh.position.x = p.kind==="backdrop" ? (Math.random()<0.5?-1:1)*(45+Math.random()*70) : (Math.random()-0.5)*(p.kind==="ridge"?60:90);
+      if(p.kind==="backdrop"){
+        p.mesh.position.x = (Math.random()<0.5?-1:1)*(45+Math.random()*70);
+      } else if(p.kind==="deco" || p.kind==="fan" || p.kind==="anemone"){
+        p.mesh.position.x = reefClusterX(10);
+      } else {
+        // must match each kind's INITIAL spawn spread (see initScene) — a
+        // mismatch here silently re-narrows the world back toward the
+        // middle every time a prop completes one lap and recycles.
+        const spreads = { rock:140, coral:95, kelp:130, ridge:100 };
+        p.mesh.position.x = (Math.random()-0.5)*(spreads[p.kind] || 100);
+      }
     }
   });
 
@@ -2831,7 +3031,7 @@ function resolveBlocking(dt){
   if(blockCool > 0) blockCool -= dt;
   if(goldRushTimer > 0) return;             // Gold Rush smashes straight through
 
-  let hitSomething = null, dmg = 0, best = null, bestObj = null, bestR = 0;
+  let hitSomething = null, dmg = 0, best = null, bestObj = null, bestR = 0, bestKind = null;
 
   // --- solid scenery (boulders / coral / rock outcrops) ---
   for(let i=0;i<worldProps.length;i++){
@@ -2848,7 +3048,7 @@ function resolveBlocking(dt){
       best = r;
       hitSomething = p.mesh.position.clone();
       dmg = Math.round((p.dmg || 10) * (selectedShark.perk==="armor"?0.8:1));
-      bestObj = p.mesh; bestR = p.solidR;
+      bestObj = p.mesh; bestR = p.solidR; bestKind = p.kind;
     }
   }
 
@@ -2867,7 +3067,7 @@ function resolveBlocking(dt){
       best = r;
       hitSomething = ent.sprite.position.clone();
       dmg = Math.round(def.damage * (selectedShark.perk==="armor"?0.8:1));
-      bestObj = ent; bestR = def.radius;
+      bestObj = ent; bestR = def.radius; bestKind = def.name || ent.type;
     }
   }
 
@@ -2878,7 +3078,7 @@ function resolveBlocking(dt){
   /* GRADED RESPONSE
      A square hit stops you dead. A glancing contact only slows you and
      deflects you around the obstacle, so side bumps stay survivable. */
-  const GRAZE_START = 0.45;                 // beyond this you start slipping past
+  const GRAZE_START = 0.6;                  // beyond this you start slipping past
   if(best.edgeness >= GRAZE_START){
     // scrape: 1.0 at the graze threshold down to ~0 at the very edge
     const t = (best.edgeness - GRAZE_START) / (1 - GRAZE_START);
@@ -2890,7 +3090,7 @@ function resolveBlocking(dt){
       blockCool = 0.7;
       const grazeDmg = Math.max(2, Math.round(dmg*0.3));
       health -= grazeDmg;
-      lastDamageCause = p.kind==="coral" ? "coral" : (p.kind || "the reef");
+      lastDamageCause = bestKind==="coral" ? "coral" : (bestKind || "the reef");
       goldRush = Math.max(0, goldRush - 6);
       shake(0.25);
       spawnPoof(hitSomething, "#ffc46e");
@@ -2975,6 +3175,17 @@ function avoidSolidProps(ent, dt){
       // also nudge the heading itself so it keeps curving away, not just this frame
       ent.hdg += (Math.sign(dx)||1) * dt * 0.6;
     }
+    // Hard backstop: the steering push above is a gradual nudge and can be
+    // overpowered by schooling cohesion or a hard panic-flee vector on a
+    // fast fish, letting it visually interpenetrate the rock for a frame or
+    // several. If it's already inside the solid core, snap it back to the
+    // surface immediately rather than let it slide through.
+    const hardR = p.solidR + 0.3;
+    if(dist < hardR && dist > 0.01){
+      const nx = dx/dist, ny = dy/dist;
+      ent.x = p.mesh.position.x + nx*hardR;
+      ent.y = p.mesh.position.y + ny*hardR;
+    }
   }
 }
 
@@ -3038,7 +3249,7 @@ function updateBehaviour(ent, dt, def){
   const T = nearestThreat(ent);
   const dxT = ent.x - T.x, dyT = ent.y - T.y;
   const isPredator = (ent.type === "orca");
-  const canSchool  = (ent.type === "fish_small" || ent.type === "fish_colorful");
+  const canSchool  = SCHOOL_FISH_TYPES.includes(ent.type);
 
   let want = P.cruise;
 
@@ -3138,8 +3349,13 @@ function updateBehaviour(ent, dt, def){
 
 function updatePlaying(dt){
   // steering
-  targetPos.x = pointerActive ? pointerX*6.5 : sharkPos.x + (0-sharkPos.x)*0.02;
-  targetPos.y = pointerActive ? (-pointerY*5)+3.5 : sharkPos.y;
+  if(tiltActive){
+    targetPos.x = tiltX*steerRangeX;
+    targetPos.y = tiltY*5+3.5;
+  } else {
+    targetPos.x = pointerActive ? pointerX*steerRangeX : sharkPos.x + (0-sharkPos.x)*0.02;
+    targetPos.y = pointerActive ? (-pointerY*5)+3.5 : sharkPos.y;
+  }
   const prevX = sharkPos.x, prevY = sharkPos.y;
   sharkPos.x += (targetPos.x - sharkPos.x)*Math.min(1, dt*4);
   sharkPos.y += (targetPos.y - sharkPos.y)*Math.min(1, dt*4);
@@ -3186,11 +3402,18 @@ function updatePlaying(dt){
     tailLower.rotation.y = Math.PI/2 + wag;
   }
   if(pecL && pecR){
+    // steerCant: fins tilt into the turn, on top of their steady flap —
+    // a small readable cue that the shark is actively steering, not drifting
+    const steerCant = Math.max(-0.35, Math.min(0.35, bank*0.12));
     pecL.rotation.x = Math.sin(swimTime*4)*0.1;
     pecR.rotation.x = -Math.sin(swimTime*4)*0.1;
+    pecL.rotation.z = -1.15 + steerCant;
+    pecR.rotation.z =  1.15 - steerCant;
   }
   if(jaw && !jawBiting){
-    const restTarget = sprintActive ? Math.PI/2 - 0.15 : Math.PI/2;
+    // faint idle breathing so the jaw never looks perfectly frozen shut
+    const breathe = Math.sin(swimTime*0.9)*0.12;
+    const restTarget = (sprintActive ? Math.PI/2 - 0.15 : Math.PI/2) + breathe;
     jaw.rotation.x += (restTarget - jaw.rotation.x) * Math.min(1, dt*6);
   }
 
@@ -3198,7 +3421,7 @@ function updatePlaying(dt){
   camMoodY *= Math.max(0, 1 - dt*camMoodDecay);
   camMoodFov *= Math.max(0, 1 - dt*camMoodDecay);
 
-  const fovTarget = (sprintActive ? 72 : 62) + camMoodFov;
+  const fovTarget = baseFov + (sprintActive ? 10 : 0) + camMoodFov;
   camera.fov += (fovTarget - camera.fov) * Math.min(1, dt*3);
   camera.updateProjectionMatrix();
   const camTarget = Math.min(sharkPos.y+1.6, SURFACE_Y-0.8);
@@ -3206,8 +3429,8 @@ function updatePlaying(dt){
   if(shakeAmt > 0){ shakeAmt = Math.max(0, shakeAmt - dt*3.2); }
   const shX = shakeAmt ? (Math.random()-0.5)*shakeAmt*1.1 : 0;
   const shY = shakeAmt ? (Math.random()-0.5)*shakeAmt*1.1 : 0;
-  camera.position.set(sharkPos.x*0.4 + shX, camY + shY + camMoodY, 7.5);
-  camera.lookAt(sharkPos.x*0.6, camY-0.9, -30);
+  camera.position.set(sharkPos.x*0.85 + shX, camY + shY + camMoodY, 7.5);
+  camera.lookAt(sharkPos.x*0.92, camY-0.9, -30);
 
   updateSharkHpBar();
   updateSharkShadow();
@@ -3247,7 +3470,7 @@ function updatePlaying(dt){
   if(spawnCooldown<=0){
     spawnEntity(story);
     const openingSpawnBoost = 1 + Math.max(0, 1 - (RUN_SECONDS-timeLeft)/18)*0.8;
-    spawnCooldown = (0.45 + Math.random()*0.4) / difficulty / openingSpawnBoost;
+    spawnCooldown = (0.3 + Math.random()*0.28) / difficulty / openingSpawnBoost;
   }
 
   entities.slice().forEach(ent=>{
@@ -3311,7 +3534,7 @@ function updatePlaying(dt){
           );
         }
         ent.trailT = 0.16;
-      } else if((ent.type==="fish_small"||ent.type==="fish_colorful") && (ent.state==="PANIC"||ent.state==="HIDE")){
+      } else if(SCHOOL_FISH_TYPES.includes(ent.type) && (ent.state==="PANIC"||ent.state==="HIDE")){
         // a school in full flight kicks up a faint bubble trail
         spawnTrail(ent.x, ent.y, ent.z+0.4, { size:0.06+Math.random()*0.06, opacity:0.35, life:0.6, rise:0.7 });
         ent.trailT = 0.12;
@@ -3356,7 +3579,13 @@ function updatePlaying(dt){
       ent.sprite.scale.setScalar(0.05 + eased*0.95);
     }
 
-    if(!ent.hit && !def.obstacle && ent.z > -2.4 && ent.z < 2.4){
+    // Schooling fish get a much more forgiving catch envelope in both z
+    // (the "are we roughly level" gate) and xy (the actual radius) — they
+    // spread out under schoolInfluence() and dart, so a tight window meant
+    // for solo/large creatures made them feel uncatchable in a pass.
+    const isSchoolFish = SCHOOL_FISH_TYPES.includes(ent.type);
+    const zPad = isSchoolFish ? 3.8 : 2.4;
+    if(!ent.hit && !def.obstacle && ent.z > -zPad && ent.z < zPad){
       const cdx = ent.sprite.position.x - sharkPos.x;
       const cdy = ent.sprite.position.y - sharkPos.y;
       let struck;
@@ -3367,7 +3596,8 @@ function updatePlaying(dt){
         // the line runs all the way to the surface, so it's a vertical wall
         struck = Math.abs(cdx) < (def.radius+0.8) && cdy > -1.5 && cdy < 12;
       } else {
-        struck = Math.hypot(cdx,cdy) < (def.radius+0.9);
+        const pad = isSchoolFish ? 3.0 : 0.9;
+        struck = Math.hypot(cdx,cdy) < (def.radius+pad);
       }
       if(struck){
         resolveHit(ent);
@@ -3655,6 +3885,50 @@ document.getElementById('journalCloseBtn').onclick = ()=> document.getElementByI
 
 initGlowLayer();
 loadJournal();
+
+(function addTiltToggle(){
+  const btn = document.createElement('button');
+  btn.textContent = "📱 TILT: OFF";
+  btn.className = "tiltbtn";
+  document.body.appendChild(btn);
+
+  tiltReadoutEl = document.createElement('div');
+  tiltReadoutEl.className = "tiltreadout";
+  document.body.appendChild(tiltReadoutEl);
+
+  btn.onclick = ()=>{
+    if(!tiltActive){
+      requestTiltPermission().then(res=>{
+        if(res==="granted"){
+          setTiltActive(true);
+          btn.textContent = "📱 TILT: ON";
+          btn.style.background = "rgba(63,215,201,0.85)";
+          tiltReadoutEl.style.display = "block";
+          tiltReadoutEl.textContent = "waiting for sensor data…";
+          // If no real deviceorientation event ever lands, this is almost
+          // always the page being embedded in a sandboxed iframe/preview
+          // that doesn't grant motion-sensor access — not a code bug.
+          setTimeout(()=>{
+            if(tiltActive && tiltBaseBeta===null){
+              tiltReadoutEl.textContent = "no sensor data received — try opening this file directly in your phone's browser, not an in-app preview";
+            }
+          }, 1800);
+        } else {
+          btn.textContent = "📱 TILT: DENIED";
+          setTimeout(()=>{ btn.textContent = "📱 TILT: OFF"; }, 1500);
+        }
+      }).catch(()=>{
+        btn.textContent = "📱 TILT: N/A";
+        setTimeout(()=>{ btn.textContent = "📱 TILT: OFF"; }, 1500);
+      });
+    } else {
+      setTiltActive(false);
+      btn.textContent = "📱 TILT: OFF";
+      btn.style.background = "rgba(0,0,0,0.55)";
+      tiltReadoutEl.style.display = "none";
+    }
+  };
+})();
 </script>
 
 <script>

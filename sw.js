@@ -6,7 +6,7 @@
    IMPORTANT: bump CACHE_NAME any time you update the game files and push a
    new version. Browsers keep old service workers running until all tabs are
    closed, and the cache name is what forces a clean break to the new files. */
-const CACHE_NAME = "shark-life-v7";
+const CACHE_NAME = "shark-life-v8";
 
 // Same-origin files that must always be available offline.
 const PRECACHE_URLS = [
@@ -20,9 +20,20 @@ const PRECACHE_URLS = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((cache) =>
+      // NOTE: deliberately NOT cache.addAll(). addAll() is atomic — a single
+      // 404 (a renamed or missing icon, say) rejects the whole promise and
+      // the service worker silently never installs, so offline support just
+      // stops working with no obvious error. Adding each URL individually
+      // means one missing asset costs you that asset, not the entire PWA.
+      Promise.all(
+        PRECACHE_URLS.map((url) =>
+          cache.add(url).catch((err) => {
+            console.warn("[sw] precache skipped:", url, err);
+          })
+        )
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
