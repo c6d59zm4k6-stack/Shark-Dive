@@ -28,7 +28,7 @@
     --ink:#062033;
     --paper:#fbf5e6;
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none;}
   html,body{margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:var(--deep); font-family:'Nunito',sans-serif;}
   #stage{position:fixed; inset:0; touch-action:none; filter:contrast(1.22) saturate(1.4) brightness(1.03);}
   canvas{display:block;}
@@ -133,18 +133,27 @@
     background:rgba(4,18,30,0.9); border:3px solid #fff; border-radius:10px; overflow:hidden;
     box-shadow:0 4px 0 rgba(2,14,24,0.6);
   }
-  .staminabar{ height:100%; width:100%; background:linear-gradient(90deg,#2f7a70,#3fd7c9); transition:width 0.1s linear; }
+  .staminabar{ height:100%; width:100%; background:linear-gradient(90deg,#2f7a70,#3fd7c9); transition:width 0.1s linear, background 0.25s ease; }
+  .staminabar.low{ background:linear-gradient(90deg,#c99a1a,#ffd166); }
+  .staminabar.critical{ background:linear-gradient(90deg,#a83a2e,#ff6f5e); }
   .stamina-icon{ font-size:16px; filter:drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }
   .boostbtn{
     position:absolute; bottom:calc(52px + env(safe-area-inset-bottom)); right:calc(18px + env(safe-area-inset-right));
-    width:82px; height:82px; border-radius:50%;
+    width:96px; height:96px; border-radius:50%;
     background:radial-gradient(circle at 35% 30%, #63e6d8, #148a8a);
     color:#04222b; font-family:'Fredoka',sans-serif; font-weight:700; font-size:13px;
     border:4px solid #fff; cursor:pointer; letter-spacing:0.04em; font-size:15px;
-    box-shadow:0 6px 0 rgba(6,70,72,0.9), 0 10px 22px rgba(0,0,0,0.45); user-select:none; touch-action:none;
+    box-shadow:0 6px 0 rgba(6,70,72,0.9), 0 10px 22px rgba(0,0,0,0.45);
     text-shadow:0 2px 3px rgba(255,255,255,0.4);
+    -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none;
+    -webkit-touch-callout:none; touch-action:none;
+    transition:transform 0.08s ease, background 0.1s ease, box-shadow 0.08s ease;
   }
-  .boostbtn:active, .boostbtn.on{ transform:scale(0.93); background:radial-gradient(circle at 35% 30%, #ffe07a, #f0912b); }
+  .boostbtn:active, .boostbtn.on{
+    transform:scale(0.91);
+    background:radial-gradient(circle at 35% 30%, #ffe07a, #f0912b);
+    box-shadow:0 2px 0 rgba(6,70,72,0.9), 0 4px 10px rgba(0,0,0,0.4), 0 0 0 6px rgba(255,224,122,0.5);
+  }
   .boostbtn.empty{ opacity:0.4; }
   .announce{
     position:absolute; top:34%; left:50%; transform:translate(-50%,-50%) scale(0.5);
@@ -178,7 +187,8 @@
 
   .missionbox{
     position:absolute; top:92px; left:12px; display:flex; flex-direction:column; gap:4px;
-    background:linear-gradient(180deg, rgba(14,52,78,0.94), rgba(6,28,45,0.94));
+    background:linear-gradient(180deg, rgba(14,52,78,0.82), rgba(6,28,45,0.82));
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
     border:3px solid rgba(255,255,255,0.85); border-radius:14px; padding:8px 11px;
     max-width:min(220px,50vw);
     box-shadow:0 5px 0 rgba(2,14,24,0.6), 0 8px 18px rgba(0,0,0,0.45);
@@ -258,6 +268,7 @@
   }
   .panel h1{ font-family:'Fredoka',sans-serif; font-weight:700; color:var(--deep); font-size:32px; margin:0 0 4px; }
   .panel .tagline{ font-style:italic; color:var(--teal); font-size:13.5px; margin-bottom:18px; }
+  .version-tag{ margin-top:14px; font-size:10.5px; color:#9aa8ac; letter-spacing:0.03em; }
   .btn{
     font-family:'Fredoka',sans-serif; font-weight:600; font-size:16px; color:#fff;
     background:linear-gradient(180deg,#ff8a6e,var(--coral)); border:none; padding:14px 26px; border-radius:14px;
@@ -412,7 +423,7 @@
     </div>
   </div>
   <div class="stamina-row"><span class="stamina-icon">⚡</span><div class="staminawrap"><div class="staminabar" id="staminabar"></div></div></div>
-  <button class="boostbtn" id="boostBtn">SPRINT</button>
+  <button class="boostbtn" id="boostBtn"><span id="boostLabel">SPRINT</span></button>
   <div class="goldrushwrap" id="goldrushwrap"><div class="goldrushbar" id="goldrushbar"></div><span class="grlabel">⭐ GOLD RUSH</span></div>
   <div class="missionbox" id="missionBox"></div>
   <div class="announce" id="announce"></div>
@@ -438,6 +449,7 @@
     </div>
     <button class="btn" id="chooseSharkBtn">Choose Your Shark →</button>
     <button class="btn secondary" id="journalBtnStart">📖 Ocean Journal</button>
+    <div class="version-tag">Build 2026-08-02</div>
   </div>
 </div>
 
@@ -572,7 +584,7 @@ const RUN_SECONDS = 120;
 const SHARK_TYPES = [
   {
     id:"reef", name:"Reef Shark", tag:"All-rounder. No weaknesses, no edges.",
-    color:0x6fa8c9, fin:0x4d7fa0, scale:{x:1,y:1,z:1}, size:1.0,
+    color:0x1fb8d6, fin:0x137e94, scale:{x:1,y:1,z:1}, size:1.0,
     speedMult:1.0, maxHealth:100, perk:null,
     stats:{speed:3, health:3, special:1}
   },
@@ -607,12 +619,15 @@ let MAX_HEALTH = 100;
 let scene, camera, renderer, clock;
 let shark, jaw, tailUpper, tailLower, pecL, pecR, dorsal;
 let swimTime = 0;
-let bubbles = [], godrays = [], kelps = [], worldProps = [];
+let bubbles = [], godrays = [], kelps = [], worldProps = [], anemones = [];
 let floorTex = null, surfaceTex = null, bubbleTexShared = null;
 let resizeListenersBound = false;
 let wake = [], wakeTimer = 0;
 let prevVX = 0, prevVY = 0, turnSwishCool = 0, swishKick = 0;
 let hitStop = 0, hitFlinch = 0;
+let sharkBodyMat = null;
+let sharkBaseColor = new THREE.Color();
+const SHARK_LOW_HEALTH_COLOR = new THREE.Color(0x3a2222);   // darker, reddish — "hurt" tint
 
 /* ===================== EVENT "VOICE" =====================
    Different encounters should feel different, not just look different.
@@ -911,7 +926,7 @@ function initScene(storyDef){
       arm.rotation.z = (Math.random()-0.5)*0.6;
       g.add(arm);
     }
-    g.position.set((Math.random()-0.5)*80, FLOOR_Y, 0);
+    g.position.set((Math.random()-0.5)*34, FLOOR_Y, 0);
     g.userData.topY = FLOOR_Y + tallest;
     addProp(g, -Math.random()*PROP_DEPTH, "coral", null, 1.2);
     worldProps[worldProps.length-1].dmg = 8;
@@ -922,7 +937,7 @@ function initScene(storyDef){
     const col = coralColors[Math.floor(Math.random()*coralColors.length)];
     const mat = new THREE.MeshStandardMaterial({ color:col, roughness:0.9, side:THREE.DoubleSide });
     const fan = new THREE.Mesh(new THREE.CircleGeometry(1+Math.random()*1.2, 9, 0, Math.PI), mat);
-    fan.position.set((Math.random()-0.5)*80, FLOOR_Y+0.5, 0);
+    fan.position.set((Math.random()-0.5)*34, FLOOR_Y+0.5, 0);
     fan.rotation.y = Math.random()*Math.PI;
     addProp(fan, -Math.random()*PROP_DEPTH, "fan");
   }
@@ -938,6 +953,118 @@ function initScene(storyDef){
     stalk.userData.topY = FLOOR_Y + h;
     addProp(stalk, -Math.random()*PROP_DEPTH, "kelp", null, 0.75);
     worldProps[worldProps.length-1].dmg = 6;
+  }
+
+  // ---- decorative-only reef life: pure aesthetics, no collision ----
+  // Purely for visual variety on the seabed. Rocks/coral above are solid
+  // obstacles; everything here is scenery you swim straight through.
+
+  // starfish — flat, five-armed, resting directly on the sand
+  const starfishCols = [0xff8a5c, 0xffb347, 0xe0668a, 0xc9563f];
+  for(let i=0;i<16;i++){
+    const s = 0.7+Math.random()*0.7;
+    const col = starfishCols[Math.floor(Math.random()*starfishCols.length)];
+    const starMat = mat(col, 0.55);
+    const star = new THREE.Group();
+    for(let a=0;a<5;a++){
+      const arm = new THREE.Mesh(new THREE.ConeGeometry(s*0.32, s*1.3, 4), starMat);
+      arm.rotation.x = Math.PI/2;
+      arm.rotation.z = (a/5)*Math.PI*2;
+      arm.position.set(Math.cos((a/5)*Math.PI*2)*s*0.55, 0, Math.sin((a/5)*Math.PI*2)*s*0.55);
+      star.add(arm);
+    }
+    const core = new THREE.Mesh(new THREE.SphereGeometry(s*0.4,8,6), starMat);
+    core.scale.y = 0.4;
+    star.add(core);
+    star.rotation.y = Math.random()*Math.PI*2;
+    star.position.set((Math.random()-0.5)*34, FLOOR_Y+0.08, 0);
+    addProp(star, -Math.random()*PROP_DEPTH, "deco");
+  }
+
+  // sea urchins — spiky dark balls tucked among the rocks
+  for(let i=0;i<8;i++){
+    const s = 0.45+Math.random()*0.35;
+    const urchinMat = mat(0x241a30, 0.4);
+    const urchin = new THREE.Group();
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(s*0.6,0), urchinMat);
+    urchin.add(core);
+    for(let k=0;k<9;k++){
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(s*0.05, s*1.1, 4), urchinMat);
+      const dir = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
+      spike.position.copy(dir.clone().multiplyScalar(s*0.5));
+      spike.lookAt(dir.clone().multiplyScalar(s*2));
+      spike.rotateX(Math.PI/2);
+      urchin.add(spike);
+    }
+    urchin.position.set((Math.random()-0.5)*34, FLOOR_Y+s*0.4, 0);
+    addProp(urchin, -Math.random()*PROP_DEPTH, "deco");
+  }
+
+  // anemones — soft swaying tentacle clusters, bright against the sand
+  const anemoneCols = [0xff6fae, 0xff9d4d, 0x9d6fff, 0x4dd6c9];
+  anemones = [];
+  for(let i=0;i<9;i++){
+    const s = 0.55+Math.random()*0.5;
+    const col = anemoneCols[Math.floor(Math.random()*anemoneCols.length)];
+    const aMat = mat(col, 0.4);
+    const base = new THREE.Mesh(new THREE.SphereGeometry(s*0.5,8,6,0,Math.PI*2,0,Math.PI*0.5), aMat);
+    base.rotation.x = Math.PI;
+    const tentacles = [];
+    for(let k=0;k<7;k++){
+      const a = (k/7)*Math.PI*2;
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(s*0.05,s*0.02,s*1.4,5), aMat);
+      t.geometry.translate(0,s*0.7,0);
+      t.position.set(Math.cos(a)*s*0.35, 0, Math.sin(a)*s*0.35);
+      base.add(t); tentacles.push(t);
+    }
+    base.position.set((Math.random()-0.5)*34, FLOOR_Y, 0);
+    addProp(base, -Math.random()*PROP_DEPTH, "anemone", null);
+    const ref = worldProps[worldProps.length-1];
+    ref.tentacles = tentacles; ref.phase2 = Math.random()*10;
+    anemones.push(ref);
+  }
+
+  // brain coral — bumpy dome clusters, greenish-brown
+  for(let i=0;i<10;i++){
+    const s = 1.0+Math.random()*1.1;
+    const brainMat = mat(0x7a9c5e, 0.6);
+    const brain = new THREE.Group();
+    for(let k=0;k<9;k++){
+      const bump = new THREE.Mesh(new THREE.SphereGeometry(s*(0.35+Math.random()*0.25), 7, 6), brainMat);
+      bump.position.set((Math.random()-0.5)*s*1.1, Math.random()*s*0.15, (Math.random()-0.5)*s*1.1);
+      brain.add(bump);
+    }
+    brain.position.set((Math.random()-0.5)*34, FLOOR_Y, 0);
+    addProp(brain, -Math.random()*PROP_DEPTH, "deco");
+  }
+
+  // tube sponges — clustered vertical barrels, warm yellow/orange accent.
+  // Tall and thin (not squat) so the silhouette reads as tubes, not a blob,
+  // with a dark rim at the open top to sell the "hollow" look from a distance.
+  const spongeCols = [0xffb347, 0xff8a5c, 0xd6a24a];
+  for(let i=0;i<11;i++){
+    const col = spongeCols[Math.floor(Math.random()*spongeCols.length)];
+    const spongeMat = mat(col, 0.55);
+    const rimMat = mat(0x5a3a1c, 0.7);
+    const cluster = new THREE.Group();
+    const n = 3+Math.floor(Math.random()*3);
+    const tubes = [];
+    for(let k=0;k<n;k++){
+      const h = 1.8+Math.random()*1.8;
+      const r = 0.12+Math.random()*0.1;
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(r*1.1,r*0.75,h,10,1,true), spongeMat);
+      tube.geometry.translate(0,h/2,0);
+      tube.position.set((Math.random()-0.5)*0.35, 0, (Math.random()-0.5)*0.35);
+      cluster.add(tube);
+      tubes.push(tube);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(r*1.1, r*0.22, 6, 10), rimMat);
+      rim.rotation.x = Math.PI/2;
+      rim.position.set(tube.position.x, h, tube.position.z);
+      cluster.add(rim);
+    }
+    cluster.position.set((Math.random()-0.5)*34, FLOOR_Y, 0);
+    tubes.forEach(t=>addOutline(cluster, t, 1.12));
+    addProp(cluster, -Math.random()*PROP_DEPTH, "deco");
   }
 
   // SOLID rock outcrops — LIGHT warm stone against the dark cool water, with
@@ -1073,6 +1200,17 @@ function buildSharkShadow(){
 
 // Fades out as the shark rises toward the surface — a shadow only reads as
 // "grounding" when something is plausibly close enough to the floor to cast it.
+// The shark itself visibly darkens and reddens as health drops, on top of
+// the existing full-screen flash — a persistent, always-visible cue rather
+// than something you only notice at the instant of impact.
+function updateSharkTint(){
+  if(!sharkBodyMat) return;
+  const healthFrac = Math.max(0, Math.min(1, health/MAX_HEALTH));
+  const hurtAmount = 1 - healthFrac;              // 0 at full health, 1 near death
+  const t = Math.pow(hurtAmount, 1.6) * 0.7;      // most of the shift happens only when genuinely low
+  sharkBodyMat.color.copy(sharkBaseColor).lerp(SHARK_LOW_HEALTH_COLOR, t);
+}
+
 function updateSharkShadow(){
   if(!sharkShadow || !shark) return;
   const heightAboveFloor = sharkPos.y - FLOOR_Y;
@@ -1087,6 +1225,8 @@ function buildShark(){
 
   const skinTex = makeSkinTexture(T.color, 0x1c2226);
   const bodyMat = new THREE.MeshPhysicalMaterial({ color:T.color, map:skinTex, roughness:0.5, clearcoat:0.55, clearcoatRoughness:0.3 });
+  sharkBodyMat = bodyMat;
+  sharkBaseColor.setHex(T.color);
   const bellyMat = new THREE.MeshPhysicalMaterial({ color:0xe8e4d9, roughness:0.5, clearcoat:0.6, clearcoatRoughness:0.25 });
   const finMat = new THREE.MeshPhysicalMaterial({ color:T.fin, roughness:0.42, clearcoat:0.7, clearcoatRoughness:0.22 });
   const darkMat = new THREE.MeshStandardMaterial({ color:0x161616, roughness:0.4 });
@@ -1172,8 +1312,9 @@ function buildShark(){
   pecR.rotation.z = 1.15;
   shark.add(pecR);
 
-  // eyes with tiny highlight
-  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.1,8,8), darkMat);
+  // eyes with tiny highlight — subtly emissive so they read as alive, not painted-on
+  const eyeMat = new THREE.MeshStandardMaterial({ color:0x0a0a0a, roughness:0.3, emissive:0x1a2f38, emissiveIntensity:0.6 });
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.1,8,8), eyeMat);
   eyeL.position.set(0.42,0.18,-2.05);
   shark.add(eyeL);
   const eyeR = eyeL.clone(); eyeR.position.x=-0.42; shark.add(eyeR);
@@ -1202,10 +1343,12 @@ function buildShark(){
   scene.add(shark);
 }
 
+let jawBiting = false;
 function biteAnimation(){
   if(!jaw) return;
+  jawBiting = true;
   jaw.rotation.x = Math.PI/2 - 0.55;
-  setTimeout(()=>{ if(jaw) jaw.rotation.x = Math.PI/2; }, 160);
+  setTimeout(()=>{ jawBiting = false; }, 160);
 }
 
 
@@ -2072,16 +2215,16 @@ function showFact(type){
 /* ===================== MISSIONS ===================== */
 
 const MISSION_POOL = [
-  { id:"eat10",    text:"Eat 10 fish",              goal:10, bonus:1500, track:(k,t,d)=> k==="eat" && (t==="fish_small"||t==="fish_colorful") },
-  { id:"eat20",    text:"Eat 20 creatures",         goal:20, bonus:2500, track:(k,t,d)=> k==="eat" },
-  { id:"seal3",    text:"Catch 3 seals",            goal:3,  bonus:2000, track:(k,t,d)=> k==="eat" && t==="seal" },
-  { id:"boat2",    text:"Raid 2 boats",             goal:2,  bonus:2000, track:(k,t,d)=> k==="eat" && t==="boat" },
-  { id:"chaos4",   text:"Cause chaos 4 times",      goal:4,  bonus:2200, track:(k,t,d)=> k==="eat" && d && d.cat==="chaos" },
-  { id:"rare1",    text:"Find something rare",      goal:1,  bonus:1800, track:(k,t,d)=> k==="eat" && d && d.rare },
-  { id:"combo8",   text:"Reach an 8 chain",         goal:1,  bonus:2000, track:(k)=> k==="combo8" },
-  { id:"gold1",    text:"Trigger a Gold Rush",      goal:1,  bonus:2500, track:(k)=> k==="goldrush" },
-  { id:"clean20",  text:"Survive 20s undamaged",    goal:20, bonus:2200, timed:true },
-  { id:"treasure1",text:"Recover sunken treasure",  goal:1,  bonus:2000, track:(k,t)=> k==="eat" && t==="treasure" }
+  { id:"eat10",    icon:"🐟", text:"Eat 10 fish",              goal:10, bonus:1500, track:(k,t,d)=> k==="eat" && (t==="fish_small"||t==="fish_colorful") },
+  { id:"eat20",    icon:"🍽️", text:"Eat 20 creatures",         goal:20, bonus:2500, track:(k,t,d)=> k==="eat" },
+  { id:"seal3",    icon:"🦭", text:"Catch 3 seals",            goal:3,  bonus:2000, track:(k,t,d)=> k==="eat" && t==="seal" },
+  { id:"boat2",    icon:"🚤", text:"Raid 2 boats",             goal:2,  bonus:2000, track:(k,t,d)=> k==="eat" && t==="boat" },
+  { id:"chaos4",   icon:"😈", text:"Cause chaos 4 times",      goal:4,  bonus:2200, track:(k,t,d)=> k==="eat" && d && d.cat==="chaos" },
+  { id:"rare1",    icon:"✨", text:"Find something rare",      goal:1,  bonus:1800, track:(k,t,d)=> k==="eat" && d && d.rare },
+  { id:"combo8",   icon:"🔗", text:"Reach an 8 chain",         goal:1,  bonus:2000, track:(k)=> k==="combo8" },
+  { id:"gold1",    icon:"⭐", text:"Trigger a Gold Rush",      goal:1,  bonus:2500, track:(k)=> k==="goldrush" },
+  { id:"clean20",  icon:"🛡️", text:"Survive 20s undamaged",    goal:20, bonus:2200, timed:true },
+  { id:"treasure1",icon:"💰", text:"Recover sunken treasure",  goal:1,  bonus:2000, track:(k,t)=> k==="eat" && t==="treasure" }
 ];
 
 function setupMissions(){
@@ -2096,7 +2239,7 @@ function renderMissions(){
   if(!box) return;
   box.innerHTML = missions.map(m=>
     '<div class="mrow'+(m.done?' done':'')+'">'+
-      '<span class="mtick">'+(m.done?'✓':'○')+'</span>'+
+      '<span class="mtick">'+(m.done?'✓':(m.icon||'○'))+'</span>'+
       '<span class="mtext">'+m.text+'</span>'+
       '<span class="mprog">'+Math.min(m.progress,m.goal)+'/'+m.goal+'</span>'+
     '</div>'
@@ -2623,6 +2766,12 @@ function updateAtmosphere(dt){
     if(p.kind==="kelp"){
       p.mesh.rotation.z = Math.sin(swimTime*0.8+p.phase)*0.14;
     }
+    if(p.kind==="anemone" && p.tentacles){
+      p.tentacles.forEach((t,i)=>{
+        t.rotation.x = Math.sin(swimTime*1.4+p.phase2+i*0.6)*0.35;
+        t.rotation.z = Math.cos(swimTime*1.1+p.phase2+i*0.6)*0.35;
+      });
+    }
     if(p.mesh.position.z > 14){
       p.mesh.position.z -= PROP_DEPTH;
       p.mesh.position.x = p.kind==="backdrop" ? (Math.random()<0.5?-1:1)*(45+Math.random()*70) : (Math.random()-0.5)*(p.kind==="ridge"?60:90);
@@ -2799,6 +2948,30 @@ function resolveBlocking(dt){
 */
 
 const THREAT_TYPES = { orca:1, hammerhead:1 };   // things OTHER creatures fear
+
+// Creatures were swimming straight through solid scenery (boulders, coral,
+// rock outcrops) since only the player shark had collision against them.
+// This gives every creature a soft push away from anything solid nearby,
+// so they curve around rocks instead of disappearing into them.
+function avoidSolidProps(ent, dt){
+  for(let i=0;i<worldProps.length;i++){
+    const p = worldProps[i];
+    if(!p.solidR) continue;
+    const pz = p.mesh.position.z;
+    if(pz < ent.z-7 || pz > ent.z+7) continue;         // cheap depth-range early-out
+    const dx = ent.x - p.mesh.position.x;
+    const dy = ent.y - p.mesh.position.y;
+    const dist = Math.hypot(dx,dy);
+    const avoidR = p.solidR + 1.6;
+    if(dist < avoidR && dist > 0.01){
+      const push = (1 - dist/avoidR) * 4.5;
+      ent.x += (dx/dist)*push*dt;
+      ent.y += (dy/dist)*push*dt;
+      // also nudge the heading itself so it keeps curving away, not just this frame
+      ent.hdg += (Math.sign(dx)||1) * dt * 0.6;
+    }
+  }
+}
 
 function nearestThreat(ent){
   // the shark is the default threat — Hammerhead's stealth perk makes prey
@@ -3011,6 +3184,10 @@ function updatePlaying(dt){
     pecL.rotation.x = Math.sin(swimTime*4)*0.1;
     pecR.rotation.x = -Math.sin(swimTime*4)*0.1;
   }
+  if(jaw && !jawBiting){
+    const restTarget = sprintActive ? Math.PI/2 - 0.15 : Math.PI/2;
+    jaw.rotation.x += (restTarget - jaw.rotation.x) * Math.min(1, dt*6);
+  }
 
   // decay any active encounter mood kick (whale drift, orca tension, etc.)
   camMoodY *= Math.max(0, 1 - dt*camMoodDecay);
@@ -3029,6 +3206,7 @@ function updatePlaying(dt){
 
   updateSharkHpBar();
   updateSharkShadow();
+  updateSharkTint();
 
   if(dolphinBoostTimer>0){ dolphinBoostTimer -= dt; }
 
@@ -3087,6 +3265,7 @@ function updatePlaying(dt){
     ent.x += ent.vx*dt;
     ent.y += ent.vy*dt;
     ent.y = Math.max(FLOOR_Y+0.5, Math.min(SURFACE_Y-0.4, ent.y));
+    if(!def.obstacle) avoidSolidProps(ent, dt);
 
     // --- swim animation -------------------------------------------------
     const bob = Math.sin(swimTime*2.1+ent.wob*1.3)*0.18;
@@ -3384,10 +3563,16 @@ function openJournal(){
 function updateStamina(){
   const bar = document.getElementById('staminabar');
   const btn = document.getElementById('boostBtn');
-  if(bar) bar.style.width = stamina+"%";
+  if(bar){
+    bar.style.width = stamina+"%";
+    bar.classList.toggle('critical', stamina < 20);
+    bar.classList.toggle('low', stamina >= 20 && stamina < 45);
+  }
   if(btn){
     btn.classList.toggle('on', sprintActive);
     btn.classList.toggle('empty', stamina < 2);
+    const label = document.getElementById('boostLabel');
+    if(label) label.textContent = sprintActive ? "BOOST!" : "SPRINT";
   }
 }
 
