@@ -1,0 +1,3477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Shark Life</title>
+
+<!-- PWA -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#073b52">
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Shark Life">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
+<style>
+  :root{
+    --deep:#073b52;
+    --teal:#0f7d8c;
+    --bright:#3fd7c9;
+    --sand:#f4e4b8;
+    --coral:#ff6f5e;
+    --gold:#ffd166;
+    --ink:#062033;
+    --paper:#fbf5e6;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:var(--deep); font-family:'Nunito',sans-serif;}
+  #stage{position:fixed; inset:0; touch-action:none; filter:contrast(1.22) saturate(1.4) brightness(1.03);}
+  canvas{display:block;}
+  #glowLayer{
+    position:fixed; inset:0; width:100%; height:100%;
+    z-index:2; pointer-events:none;
+    mix-blend-mode:screen; opacity:0.4;
+    filter: blur(6px) brightness(1.35) saturate(1.2);
+  }
+  #colorGrade{
+    position:fixed; inset:0; z-index:3; pointer-events:none;
+    background:
+      radial-gradient(ellipse at 50% 42%, transparent 52%, rgba(2,10,18,0.5) 100%);
+    mix-blend-mode:multiply;
+  }
+  #colorGrade::after{
+    content:""; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(255,240,200,0.10), rgba(0,60,90,0.05));
+    mix-blend-mode:overlay;
+  }
+
+  .hud{position:fixed; inset:0; pointer-events:none; z-index:5; font-family:'Nunito',sans-serif;}
+  /* thick dark outline + drop shadow: the classic arcade-UI look */
+  .outlined{
+    -webkit-text-stroke: 3px rgba(4,20,32,0.92);
+    paint-order: stroke fill;
+    text-shadow: 0 3px 0 rgba(4,20,32,0.55), 0 5px 12px rgba(0,0,0,0.5);
+  }
+  .hud * { pointer-events:auto; }
+
+  /* top bar */
+  .topbar{
+    position:absolute; top:0; left:0; right:0; display:flex; flex-direction:column; gap:6px;
+    padding:calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 0 calc(12px + env(safe-area-inset-left));
+  }
+  .row1{display:flex; align-items:center; gap:10px;}
+  .story-chip{
+    background:linear-gradient(180deg,#2fd4c4,#128f92);
+    color:#fff; font-family:'Fredoka',sans-serif; font-weight:700; font-size:14px;
+    padding:6px 14px; border-radius:20px; letter-spacing:0.02em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    border:3px solid #fff;
+    box-shadow:0 4px 0 rgba(4,60,60,0.7), 0 6px 14px rgba(0,0,0,0.4);
+    text-shadow:0 2px 3px rgba(0,0,0,0.45);
+  }
+  .timer{
+    font-family:'Fredoka',sans-serif; font-weight:700; font-size:30px; color:#fff;
+    background:linear-gradient(180deg,#ffb03a,#f07c1e);
+    padding:6px 18px; border-radius:16px; min-width:82px; text-align:center;
+    border:3px solid #fff;
+    box-shadow:0 5px 0 rgba(150,60,0,0.8), 0 7px 16px rgba(0,0,0,0.45);
+    -webkit-text-stroke:2.5px rgba(120,40,0,0.55); paint-order:stroke fill;
+  }
+  .timer #timerNum{ display:inline-block; }
+  .timer.urgent{ background:linear-gradient(180deg,#ff5f52,#c62828); animation:timerPulse 0.5s ease-in-out infinite; }
+  @keyframes timerPulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.1); } }
+  .healthwrap{
+    flex:1; height:26px; background:rgba(4,18,30,0.9); border-radius:14px; overflow:hidden;
+    border:3px solid #fff; position:relative;
+    box-shadow:0 4px 0 rgba(2,14,24,0.6), 0 6px 14px rgba(0,0,0,0.4);
+  }
+  .healthnum{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:'Fredoka',sans-serif; font-weight:700; font-size:14px; color:#fff;
+    -webkit-text-stroke:2.5px rgba(0,0,0,0.55); paint-order:stroke fill;
+    letter-spacing:0.02em; pointer-events:none;
+  }
+  .healthbar{height:100%; width:100%; background:linear-gradient(90deg,#ff6f5e,#ffd166,#3fd7c9); transition:width 0.25s ease;}
+  .healthbar.critical{ animation:hpPulse 0.55s ease-in-out infinite; }
+  @keyframes hpPulse{ 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.8); } }
+
+  /* floating mini health bar that tracks the shark's on-screen position */
+  .shark-hpbar{
+    position:absolute; width:56px; height:7px; left:0; top:0;
+    background:rgba(4,18,30,0.75); border:1.5px solid rgba(255,255,255,0.8); border-radius:5px;
+    overflow:hidden; opacity:0; transform:translate(-50%,-50%);
+    transition:opacity 0.3s ease; pointer-events:none; z-index:4;
+    box-shadow:0 2px 0 rgba(2,14,24,0.5);
+  }
+  .shark-hpbar.visible{ opacity:0.95; }
+  .shark-hpfill{
+    height:100%; width:100%; background:linear-gradient(90deg,#ff6f5e,#ffd166,#3fd7c9);
+    transition:width 0.2s ease;
+  }
+  .shark-hpbar.critical .shark-hpfill{ animation:hpPulse 0.5s ease-in-out infinite; }
+
+  .scores{display:flex; gap:8px; justify-content:flex-end;}
+  .scorepill{
+    background:linear-gradient(180deg, rgba(18,60,88,0.95), rgba(6,28,45,0.95));
+    color:#fff; font-size:19px; font-weight:700;
+    padding:6px 13px; border-radius:14px; display:flex; align-items:center; gap:6px;
+    border:2.5px solid rgba(255,255,255,0.9); font-family:'Fredoka',sans-serif;
+    box-shadow:0 4px 0 rgba(2,14,24,0.65), 0 6px 14px rgba(0,0,0,0.4);
+    text-shadow:0 2px 3px rgba(0,0,0,0.7);
+  }
+
+  .stamina-row{
+    position:absolute; bottom:calc(60px + env(safe-area-inset-bottom)); left:calc(16px + env(safe-area-inset-left));
+    display:flex; align-items:center; gap:6px;
+  }
+  .staminawrap{
+    width:min(160px,34vw); height:18px;
+    background:rgba(4,18,30,0.9); border:3px solid #fff; border-radius:10px; overflow:hidden;
+    box-shadow:0 4px 0 rgba(2,14,24,0.6);
+  }
+  .staminabar{ height:100%; width:100%; background:linear-gradient(90deg,#2f7a70,#3fd7c9); transition:width 0.1s linear; }
+  .stamina-icon{ font-size:16px; filter:drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }
+  .boostbtn{
+    position:absolute; bottom:calc(52px + env(safe-area-inset-bottom)); right:calc(18px + env(safe-area-inset-right));
+    width:82px; height:82px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #63e6d8, #148a8a);
+    color:#04222b; font-family:'Fredoka',sans-serif; font-weight:700; font-size:13px;
+    border:4px solid #fff; cursor:pointer; letter-spacing:0.04em; font-size:15px;
+    box-shadow:0 6px 0 rgba(6,70,72,0.9), 0 10px 22px rgba(0,0,0,0.45); user-select:none; touch-action:none;
+    text-shadow:0 2px 3px rgba(255,255,255,0.4);
+  }
+  .boostbtn:active, .boostbtn.on{ transform:scale(0.93); background:radial-gradient(circle at 35% 30%, #ffe07a, #f0912b); }
+  .boostbtn.empty{ opacity:0.4; }
+  .announce{
+    position:absolute; top:34%; left:50%; transform:translate(-50%,-50%) scale(0.5);
+    font-family:'Fredoka',sans-serif; font-weight:700; font-size:clamp(34px,9vw,60px);
+    -webkit-text-stroke:5px rgba(4,20,32,0.9); paint-order:stroke fill;
+    text-shadow:0 5px 0 rgba(4,20,32,0.55), 0 8px 24px rgba(0,0,0,0.6);
+    opacity:0; pointer-events:none; white-space:nowrap; letter-spacing:0.02em; z-index:8;
+  }
+  .announce.show{ animation:announcePop 1.3s cubic-bezier(.2,.9,.2,1) forwards; }
+  @keyframes announcePop{
+    0%{ opacity:0; transform:translate(-50%,-50%) scale(0.5); }
+    18%{ opacity:1; transform:translate(-50%,-50%) scale(1.15); }
+    30%{ transform:translate(-50%,-50%) scale(1); }
+    78%{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+    100%{ opacity:0; transform:translate(-50%,-58%) scale(0.95); }
+  }
+  .goldrushwrap{
+    position:absolute; top:92px; right:12px; width:132px; height:22px;
+    background:rgba(4,18,30,0.9); border:3px solid rgba(255,255,255,0.85);
+    border-radius:12px; overflow:hidden;
+    box-shadow:0 4px 0 rgba(2,14,24,0.6), 0 6px 14px rgba(0,0,0,0.4);
+  }
+  .goldrushwrap .grlabel{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:'Fredoka',sans-serif; font-size:11.5px; font-weight:700; color:#fff;
+    letter-spacing:0.1em; text-shadow:0 1px 2px rgba(0,0,0,0.6);
+  }
+  .goldrushbar{ height:100%; width:0%; background:linear-gradient(90deg,#f0912b,#ffe07a); transition:width 0.15s linear; }
+  .goldrushwrap.active{ border-color:#ffe07a; box-shadow:0 0 14px rgba(255,224,122,0.7); }
+  body.goldrush #colorGrade{ background:radial-gradient(ellipse at 50% 40%, rgba(255,200,80,0.15), rgba(120,60,0,0.4)); }
+
+  .missionbox{
+    position:absolute; top:92px; left:12px; display:flex; flex-direction:column; gap:4px;
+    background:linear-gradient(180deg, rgba(14,52,78,0.94), rgba(6,28,45,0.94));
+    border:3px solid rgba(255,255,255,0.85); border-radius:14px; padding:8px 11px;
+    max-width:min(220px,50vw);
+    box-shadow:0 5px 0 rgba(2,14,24,0.6), 0 8px 18px rgba(0,0,0,0.45);
+  }
+  .mrow{ display:flex; align-items:center; gap:7px; font-size:13.5px; font-family:'Fredoka',sans-serif; font-weight:600; color:#fff; text-shadow:0 2px 3px rgba(0,0,0,0.6); }
+  .mrow.done{ color:#6cffd8; text-decoration:line-through; opacity:0.85; }
+  .mtick{ font-size:11px; }
+  .mtext{ flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mprog{ font-size:12px; opacity:0.9; font-weight:700; color:var(--gold); }
+
+  .combo{
+    position:absolute; top:64px; left:50%; transform:translateX(-50%) scale(0.8);
+    font-family:'Fredoka',sans-serif; font-weight:700; color:var(--gold); font-size:38px;
+    -webkit-text-stroke:4px rgba(4,20,32,0.9); paint-order:stroke fill;
+    text-shadow:0 2px 6px rgba(0,0,0,0.4); opacity:0; transition:opacity 0.2s ease, transform 0.2s ease;
+    white-space:nowrap;
+  }
+  .combo.show{opacity:1; transform:translateX(-50%) scale(1);}
+  .combo b{ color:#fff; font-size:1.15em; }
+
+  /* floating popups */
+  .popup{
+    position:absolute; font-family:'Fredoka',sans-serif; font-weight:700; font-size:34px;
+    pointer-events:none; z-index:6; white-space:nowrap;
+    -webkit-text-stroke:3.5px rgba(4,20,32,0.9); paint-order:stroke fill;
+    text-shadow:0 4px 0 rgba(4,20,32,0.5), 0 6px 14px rgba(0,0,0,0.55);
+  }
+  .popup-big{ font-size:42px; text-shadow:0 4px 12px rgba(0,0,0,0.65), 0 0 26px rgba(255,209,102,0.55); }
+  .popup-damage{ font-size:26px; -webkit-text-stroke:3px rgba(60,0,0,0.9); }
+
+  /* fact card */
+  .factcard{
+    position:absolute; left:50%; bottom:18px; transform:translateX(-50%) translateY(120%);
+    max-width:min(420px, 88vw); background:var(--paper); border-radius:16px; padding:14px 16px;
+    box-shadow:0 12px 30px rgba(0,0,0,0.35); transition:transform 0.35s cubic-bezier(.2,.8,.2,1);
+    border:2px solid var(--gold);
+  }
+  .factcard.show{ transform:translateX(-50%) translateY(0); }
+  .factcard .fc-title{ font-family:'Fredoka',sans-serif; font-weight:700; color:var(--teal); font-size:13px; letter-spacing:0.04em; margin-bottom:3px; }
+  .factcard .fc-body{ color:var(--ink); font-size:16px; line-height:1.45; }
+
+  /* event "voice" — each mood rises differently, not just looks different */
+  .factcard.mood-majestic{
+    border-color:#8fc9e8; box-shadow:0 12px 40px rgba(80,160,220,0.35), 0 0 30px rgba(150,210,255,0.3);
+    transition:transform 1.1s cubic-bezier(.16,.9,.2,1);   /* slow, unhurried rise */
+  }
+  .factcard.mood-danger{
+    border-color:#e8483a; border-width:3px; box-shadow:0 8px 26px rgba(200,40,20,0.45);
+    transition:transform 0.22s cubic-bezier(.6,-0.3,.4,1.5);  /* sharp overshoot snap */
+  }
+  .factcard.mood-mysterious{
+    border-color:#8a5fd6; background:#efe8f7;
+    box-shadow:0 12px 34px rgba(90,40,140,0.35), 0 0 26px rgba(140,90,200,0.25);
+    transition:transform 0.7s ease-out;
+  }
+  .factcard.mood-curious{ border-color:var(--bright); }
+
+  /* frenzy banner */
+  .frenzy-banner{
+    position:absolute; top:38%; left:50%; transform:translate(-50%,-50%) scale(0.6); opacity:0;
+    font-family:'Fredoka',sans-serif; font-weight:700; color:var(--coral); font-size:clamp(28px,7vw,44px);
+    text-align:center; text-shadow:0 4px 14px rgba(0,0,0,0.4); transition:all 0.35s cubic-bezier(.2,.8,.2,1);
+    z-index:7;
+  }
+  .frenzy-banner.show{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+  .frenzy-banner span{ display:block; font-size:14px; color:var(--paper); margin-top:6px; font-family:'Nunito',sans-serif; font-weight:600; }
+
+  /* screens */
+  .screen{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(180deg, rgba(3,20,33,0.75), rgba(3,20,33,0.92));
+    z-index:10; padding:20px;
+  }
+  .panel{
+    background:var(--paper); border-radius:22px; padding:28px 26px; max-width:420px; width:100%;
+    text-align:center; box-shadow:0 20px 50px rgba(0,0,0,0.4);
+  }
+  .panel h1{ font-family:'Fredoka',sans-serif; font-weight:700; color:var(--deep); font-size:32px; margin:0 0 4px; }
+  .panel .tagline{ font-style:italic; color:var(--teal); font-size:13.5px; margin-bottom:18px; }
+  .btn{
+    font-family:'Fredoka',sans-serif; font-weight:600; font-size:16px; color:#fff;
+    background:linear-gradient(180deg,#ff8a6e,var(--coral)); border:none; padding:14px 26px; border-radius:14px;
+    cursor:pointer; box-shadow:0 6px 0 #c8503f; transition:transform 0.1s ease, box-shadow 0.1s ease;
+    width:100%; margin-top:8px;
+  }
+  .btn:active{ transform:translateY(4px); box-shadow:0 2px 0 #c8503f; }
+  .btn.secondary{ background:linear-gradient(180deg,#4fe0d2,var(--teal)); box-shadow:0 6px 0 #0b5f6b; }
+  .btn.secondary:active{ box-shadow:0 2px 0 #0b5f6b; }
+  .howto{ text-align:left; font-size:13px; color:#3a4a52; background:#eee3c8; border-radius:12px; padding:10px 14px; margin:14px 0; line-height:1.5; }
+
+  .story-reveal{ font-family:'Fredoka',sans-serif; }
+  .story-reveal .label{ font-size:12px; letter-spacing:0.1em; color:var(--teal); font-weight:700; }
+  .story-reveal .name{ font-size:26px; font-weight:700; color:var(--deep); margin:4px 0 8px; }
+  .story-reveal .twist{ font-size:13.5px; color:var(--coral); font-weight:700; margin-top:8px; }
+
+  .recap-row{ display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom:1px dashed #d8c9a0; font-size:15px; color:var(--ink); font-weight:700;}
+  .recap-row .cat{ font-family:'Nunito',sans-serif; font-weight:600; color:#5a6a72; font-size:13.5px; }
+  .title-badge{ font-family:'Fredoka',sans-serif; font-weight:700; color:var(--coral); font-size:20px; margin:10px 0 4px; }
+  .recap-text{
+    font-size:14.5px; line-height:1.55; color:var(--ink); text-align:left;
+    background:#f5ecd4; border-radius:12px; padding:12px 14px; margin:10px 0 16px;
+  }
+  .recap-text b{ color:var(--teal); }
+
+  /* journal modal */
+  .shark-grid{
+    display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin:14px 0 10px;
+  }
+  .scard{
+    background:#eee3c8; border-radius:12px; padding:8px 4px; text-align:center;
+    cursor:pointer; border:3px solid transparent; transition:transform 0.15s ease, border-color 0.15s ease;
+  }
+  .scard:hover{ transform:translateY(-2px); }
+  .scard.picked{ border-color:var(--coral); background:#f5e9cc; }
+  .scard .semoji{ font-size:26px; display:block; }
+  .scard .sname{ font-family:'Fredoka',sans-serif; font-weight:700; font-size:10px; color:var(--ink); display:block; margin-top:2px; line-height:1.15; }
+  .shark-stats{ background:#eee3c8; border-radius:12px; padding:10px 14px; text-align:left; margin-bottom:6px; }
+  .stat-row{ display:flex; align-items:center; gap:8px; margin:4px 0; }
+  .stat-label{ font-family:'Fredoka',sans-serif; font-weight:600; font-size:12px; color:var(--ink); width:64px; flex-shrink:0; }
+  .stat-bar{ flex:1; height:8px; background:#d8c9a0; border-radius:5px; overflow:hidden; }
+  .stat-fill{ height:100%; background:linear-gradient(90deg,var(--coral),var(--gold)); border-radius:5px; }
+  .stat-perk{ font-size:12.5px; color:var(--teal); font-weight:700; margin-top:6px; }
+
+  .journal-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; max-height:44vh; overflow-y:auto; margin:14px 0; }
+  .jcell{ background:#eee3c8; border-radius:12px; padding:8px 4px; text-align:center; font-size:22px; position:relative; }
+  .jcell.locked{ opacity:0.35; filter:grayscale(1); }
+  .jcell .jname{ font-size:8.5px; font-family:'Nunito',sans-serif; font-weight:700; color:var(--ink); display:block; margin-top:2px; line-height:1.1; }
+  .jdetail{ display:none; text-align:left; background:#eee3c8; border-radius:12px; padding:10px 12px; font-size:13px; color:var(--ink); margin-top:6px; line-height:1.4; }
+  .jdetail.show{ display:block; }
+
+  ::-webkit-scrollbar{ width:6px; }
+  ::-webkit-scrollbar-thumb{ background:#c8b98a; border-radius:4px; }
+
+  .dstrip{
+    position:absolute; left:0; right:0; bottom:0;
+    display:flex; gap:6px; overflow-x:auto;
+    justify-content:flex-start;
+    padding:8px calc(10px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+  }
+  .dchip{
+    flex:0 0 auto;
+    background:linear-gradient(180deg, rgba(14,52,78,0.95), rgba(6,28,45,0.95));
+    border:2.5px solid rgba(255,255,255,0.85); border-radius:12px;
+    padding:5px 11px; display:flex; flex-direction:column; min-width:84px;
+    box-shadow:0 4px 0 rgba(2,14,24,0.6);
+    transform:scale(1); transition:transform 0.25s cubic-bezier(.34,1.56,.64,1);
+  }
+  .dchip.new{ transform:scale(1.12); border-color:var(--gold); }
+  .dchip-label{ font-family:'Nunito',sans-serif; font-weight:700; font-size:9px; letter-spacing:0.06em; color:var(--gold); text-transform:uppercase; }
+  .dchip-name{ font-family:'Fredoka',sans-serif; font-weight:700; font-size:13.5px; color:#fff; white-space:nowrap; text-shadow:0 2px 3px rgba(0,0,0,0.6); }
+
+  .hidden{ display:none !important; }
+
+  @media (max-width:380px){
+    .panel{ padding:22px 18px; }
+  }
+
+  /* ===================== COMPACT LAYOUT ===================== */
+  /* Triggered by available HEIGHT, not orientation — a landscape phone and a
+     short desktop browser window have the same problem (vertical space is
+     the scarce resource), so both get fixed by the same rule. This is what
+     makes landscape phones work: every HUD element that was hand-positioned
+     assuming a tall portrait viewport gets shrunk and pulled inward here. */
+  @media (max-height:520px){
+    .topbar{ padding-top:calc(6px + env(safe-area-inset-top)); gap:3px; }
+    .story-chip{ font-size:11px; padding:4px 10px; border-width:2px; }
+    .timer{ font-size:19px; padding:3px 12px; min-width:56px; border-width:2px; }
+    .healthwrap{ height:17px; border-width:2px; }
+    .healthnum{ font-size:10px; -webkit-text-stroke:1.8px rgba(0,0,0,0.55); }
+    .scorepill{ font-size:12px; padding:3px 8px; border-width:2px; gap:3px; }
+
+    .missionbox{ top:60px; padding:5px 8px; gap:2px; max-width:min(170px,42vw); border-width:2px; }
+    .mrow{ font-size:10.5px; }
+    .mprog{ font-size:9px; }
+    .goldrushwrap{ top:60px; width:96px; height:16px; border-width:2px; }
+    .goldrushwrap .grlabel{ font-size:8.5px; }
+
+    .stamina-row{ bottom:calc(8px + env(safe-area-inset-bottom)); left:calc(10px + env(safe-area-inset-left)); }
+    .staminawrap{ width:min(110px,26vw); height:13px; }
+    .stamina-icon{ font-size:12px; }
+    .boostbtn{
+      width:54px; height:54px; font-size:9px; border-width:3px;
+      bottom:calc(8px + env(safe-area-inset-bottom)); right:calc(10px + env(safe-area-inset-right));
+    }
+    .dstrip{
+      padding-top:4px; gap:4px;
+      padding-left:calc(130px + env(safe-area-inset-left));
+      padding-right:calc(72px + env(safe-area-inset-right));
+    }
+    .dchip{ padding:3px 8px; min-width:60px; }
+    .dchip-label{ font-size:7.5px; }
+    .dchip-name{ font-size:10px; }
+
+    .factcard{ padding:8px 12px; bottom:6px; max-width:min(360px,72vw); }
+    .factcard .fc-title{ font-size:10px; }
+    .factcard .fc-body{ font-size:11.5px; line-height:1.3; }
+
+    .combo{ top:44px; font-size:22px; }
+    .announce{ font-size:clamp(22px,6vw,34px); -webkit-text-stroke:3.5px rgba(4,20,32,0.9); }
+    .frenzy-banner{ font-size:clamp(20px,5vw,30px); }
+    .popup{ font-size:22px; }
+    .popup-big{ font-size:28px; }
+
+    /* the start/select/end screens also need to fit — never let them clip */
+    .panel{ max-height:92vh; overflow-y:auto; padding:16px 18px; }
+    .panel h1{ font-size:22px; margin-bottom:2px; }
+    .howto{ font-size:11.5px; padding:8px 11px; margin:8px 0; }
+    .shark-grid{ margin:8px 0 6px; }
+    .journal-grid{ max-height:36vh; }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+<canvas id="glowLayer"></canvas>
+<div id="colorGrade"></div>
+
+<div class="hud" id="hud">
+  <div class="shark-hpbar" id="sharkHpBar"><div class="shark-hpfill" id="sharkHpFill"></div></div>
+  <div class="topbar">
+    <div class="row1">
+      <div class="story-chip" id="storyChip">Shark Life</div>
+      <div class="healthwrap"><div class="healthbar" id="healthbar"></div><span class="healthnum" id="healthNum">100/100</span></div>
+      <div class="timer" id="timer">⏱️ <span id="timerNum">2:00</span></div>
+    </div>
+    <div class="scores">
+      <div class="scorepill">🎣 <span id="hunterScore">0</span></div>
+      <div class="scorepill">🧭 <span id="explorerScore">0</span></div>
+      <div class="scorepill">😈 <span id="chaosScore">0</span></div>
+    </div>
+  </div>
+  <div class="stamina-row"><span class="stamina-icon">⚡</span><div class="staminawrap"><div class="staminabar" id="staminabar"></div></div></div>
+  <button class="boostbtn" id="boostBtn">SPRINT</button>
+  <div class="goldrushwrap" id="goldrushwrap"><div class="goldrushbar" id="goldrushbar"></div><span class="grlabel">⭐ GOLD RUSH</span></div>
+  <div class="missionbox" id="missionBox"></div>
+  <div class="announce" id="announce"></div>
+  <div class="combo" id="comboEl"></div>
+  <div class="frenzy-banner" id="frenzyBanner"></div>
+  <div class="factcard" id="factCard">
+    <div class="fc-title" id="factTitle">💡 DID YOU KNOW?</div>
+    <div class="fc-body" id="factBody"></div>
+  </div>
+  <div class="dstrip" id="discoveryStrip"></div>
+</div>
+
+<!-- Start screen -->
+<div class="screen" id="startScreen">
+  <div class="panel">
+    <h1>🦈 Shark Life</h1>
+    <div class="tagline">Every dive tells a different story.</div>
+    <div class="howto">
+      <b>Drag</b> to steer &middot; <b>SPRINT</b> button to chase fast prey.<br>
+      You're always <b>getting hungrier</b> — eat constantly or you'll starve.<br>
+      Dodge mines, hooks &amp; reef pillars. Chain kills to trigger <b>GOLD RUSH</b>.<br>
+      Complete your <b>3 missions</b> before the dive ends!
+    </div>
+    <button class="btn" id="chooseSharkBtn">Choose Your Shark →</button>
+    <button class="btn secondary" id="journalBtnStart">📖 Ocean Journal</button>
+  </div>
+</div>
+
+<!-- Shark selection screen -->
+<div class="screen hidden" id="sharkScreen">
+  <div class="panel" style="max-width:480px;">
+    <h1 style="font-size:24px;">Choose Your Shark</h1>
+    <div class="tagline" id="sharkTagline">All-rounder. No weaknesses, no edges.</div>
+    <div class="shark-grid" id="sharkGrid"></div>
+    <div class="shark-stats" id="sharkStats"></div>
+    <button class="btn" id="startBtn">Start Dive</button>
+  </div>
+</div>
+
+<!-- Story reveal screen -->
+<div class="screen hidden" id="storyScreen">
+  <div class="panel story-reveal">
+    <div class="label">TODAY'S DIVE</div>
+    <div class="name" id="storyName">—</div>
+    <div id="storyTagline" style="color:#3a4a52; font-size:14px;"></div>
+    <div class="twist" id="storyTwist"></div>
+  </div>
+</div>
+
+<!-- End screen -->
+<div class="screen hidden" id="endScreen">
+  <div class="panel">
+    <h1 id="endTitle">Dive Complete</h1>
+    <div class="title-badge" id="rankTitle"></div>
+    <div class="recap-text" id="recapText"></div>
+    <div class="recap-row"><span class="cat">🎣 Hunter</span><span id="finalHunter">0</span></div>
+    <div class="recap-row"><span class="cat">🧭 Explorer</span><span id="finalExplorer">0</span></div>
+    <div class="recap-row"><span class="cat">😈 Chaos</span><span id="finalChaos">0</span></div>
+    <div class="recap-row" style="border-bottom:none; font-size:20px; padding-top:12px;"><span class="cat" style="font-size:15px;">TOTAL</span><span id="finalTotal">0</span></div>
+    <div class="howto" id="finalFact" style="margin-top:14px;"></div>
+    <button class="btn" id="diveAgainBtn">Dive Again</button>
+    <button class="btn secondary" id="journalBtnEnd">📖 Ocean Journal</button>
+  </div>
+</div>
+
+<!-- Journal modal -->
+<div class="screen hidden" id="journalScreen">
+  <div class="panel" style="max-width:460px;">
+    <h1 style="font-size:24px;">📖 Ocean Journal</h1>
+    <div class="tagline" id="journalCount">0 / 0 discovered</div>
+    <div class="journal-grid" id="journalGrid"></div>
+    <div class="jdetail" id="journalDetail"></div>
+    <button class="btn secondary" id="journalCloseBtn">Close</button>
+  </div>
+</div>
+
+<script>
+window.addEventListener('error', (e)=>{
+  console.error('[Shark Life] runtime error:', e.message, 'at', e.filename+':'+e.lineno+':'+e.colno, e.error && e.error.stack ? '\n'+e.error.stack : '');
+});
+
+/* ============================= DATA ============================= */
+
+const ENTITY_TYPES = {
+  fish_small:    { emoji:"🐟", band:"mid", kind:"prey",  cat:"hunter",   points:10, radius:1.1, name:"Reef Fish",       fact:"Small reef fish often swim in schools of thousands — safety in numbers confuses predators." },
+  fish_colorful: { emoji:"🐠", band:"mid", kind:"prey",  cat:"hunter",   points:15, radius:1.1, name:"Blue Tang",       fact:"Colorful reef fish like this one can change their brightness slightly depending on their mood." },
+  seal:          { emoji:"🦭", band:"upper", kind:"prey",  cat:"hunter",   points:30, radius:1.4, name:"Seal",            fact:"Seals are fast, agile swimmers — sharks usually rely on surprise, not speed, to catch one." },
+  turtle:        { emoji:"🐢", band:"mid", kind:"encounter", cat:"explorer", points:25, radius:1.3, name:"Sea Turtle",   fact:"Sea turtles have existed for over 100 million years — they swam alongside actual dinosaurs.", onHitOnly:true },
+  dolphin:       { emoji:"🐬", band:"upper", kind:"encounter", cat:"explorer", points:20, radius:1.3, name:"Dolphin", boost:true, fact:"Dolphins sometimes team up to fight off sharks by ramming them with their snouts.", onHitOnly:true },
+  jellyfish:     { emoji:"🪼", band:"mid", kind:"hazard", cat:null, damage:12, radius:1.1, name:"Jellyfish", fact:"Some jellyfish are 95% water and have no brain, heart, or bones at all.", onHitOnly:true },
+  jellyfish_rare:{ emoji:"🪼", band:"mid", kind:"hazard", cat:null, damage:22, radius:1.1, name:"Box Jellyfish", rare:true, tint:"#ff5b4d", fact:"The box jellyfish is considered one of the most venomous marine animals on Earth.", onHitOnly:true },
+  net:           { emoji:"🕸️", band:"mid", kind:"hazard", cat:null, damage:15, radius:1.3, name:"Fishing Net", fact:"Lost 'ghost nets' can drift the ocean for years, which is why real sharks sometimes get tangled.", onHitOnly:true },
+  whale:         { emoji:"🐋", band:"mid", kind:"encounter", cat:"explorer", points:60, radius:2.4, name:"Humpback Whale", rare:true, discoverOnSpawn:true, mood:"majestic", fact:"A humpback whale's heart can weigh as much as a small car." },
+  orca:          { emoji:"🐬", band:"mid", kind:"hazard", cat:null, damage:30, radius:1.8, name:"Orca", rare:true, tint:"#111827", discoverOnSpawn:true, mood:"danger", fact:"Orcas are actually the largest member of the dolphin family, not whales." },
+  diver:         { emoji:"🤿", band:"upper", kind:"chaos",  cat:"chaos", points:20, radius:1.2, name:"Diver", fact:"Real sharks almost never target human divers — most bites on people are cases of mistaken identity.", onHitOnly:true },
+  swimmer:       { emoji:"🏊", band:"surface", kind:"chaos",  cat:"chaos", points:15, radius:1.2, name:"Swimmer", fact:"You're more likely to be hurt by a vending machine or a coconut than by a shark.", onHitOnly:true },
+  boat:          { emoji:"🚤", band:"surface", kind:"chaos",  cat:"chaos", points:25, radius:1.8, name:"Boat", fact:"Some sharks are known to investigate boats out of curiosity, gently bumping the hull.", onHitOnly:true },
+  treasure:      { emoji:"💰", band:"floor", kind:"encounter", cat:"explorer", points:40, radius:1.2, name:"Sunken Treasure", fact:"Thousands of shipwrecks around the world have never been found — some still holding real treasure.", onHitOnly:true },
+  squid_giant:   { emoji:"🦑", band:"floor", kind:"encounter", cat:"explorer", points:50, radius:1.6, name:"Giant Squid", rare:true, discoverOnSpawn:true, mood:"mysterious", fact:"The giant squid has the largest eyes of any animal on Earth — about the size of a dinner plate." },
+  reef_pillar:   { emoji:"🪨", band:"mid", kind:"hazard", cat:null, damage:16, radius:2.0, name:"Reef Pillar", obstacle:true, fact:"Coral pillars take centuries to grow — sharks weave through reef mazes with ease.", onHitOnly:true },
+  sea_mine:      { emoji:"💣", band:"mid", kind:"hazard", cat:null, damage:34, radius:1.2, name:"Sea Mine", obstacle:true, fact:"Old sea mines still drift in some oceans decades after being laid.", onHitOnly:true },
+  hook_line:     { emoji:"🪝", band:"mid", kind:"hazard", cat:null, damage:22, radius:0.9, name:"Baited Hook", obstacle:true, fact:"Longline fishing sets thousands of baited hooks — a major danger to real sharks.", onHitOnly:true },
+  hammerhead:    { emoji:"🦈", band:"mid", kind:"encounter", cat:"explorer", points:45, radius:1.6, name:"Hammerhead Shark", rare:true, discoverOnSpawn:true, mood:"curious", fact:"A hammerhead's oddly-shaped head spreads its eyes apart for nearly 360° vision." }
+};
+
+const STORIES = [
+  { id:"storm", icon:"🌀", name:"Tropical Storm", tagline:"The water is churning. Stay sharp out there.",
+    fog:0x156299, sky:0x175d99, top:0x387098, weights:{net:2.5, jellyfish:1.5}, speedMult:1.15 },
+  { id:"tournament", icon:"🎣", name:"Fishing Tournament", tagline:"Boats are everywhere. Easy food, but stay alert.",
+    fog:0x027aa5, sky:0x0680a8, top:0x30bbe6, weights:{boat:3, diver:2, net:2.5}, frenzy:"feeding", frenzyAt:0.5 },
+  { id:"migration", icon:"🐋", name:"Whale Migration", tagline:"Something huge is passing through today.",
+    fog:0x0464a5, sky:0x0869af, top:0x3082bc, weights:{whale:5, dolphin:2.5} },
+  { id:"beach", icon:"🏖️", name:"Tourist Beach", tagline:"The shallows are packed with people today.",
+    fog:0x0681ae, sky:0x1294b8, top:0x64e9f7, weights:{swimmer:4, diver:2, boat:2} },
+  { id:"orca", icon:"🐬", name:"Orca Territory", tagline:"You're not the only apex predator around here.",
+    fog:0x086398, sky:0x11729e, top:0x2e6d93, weights:{orca:5} },
+  { id:"jelly", icon:"🪼", name:"Jellyfish Bloom", tagline:"The water is thick with jellyfish tonight.",
+    fog:0x492ca0, sky:0x5736a6, top:0x744cd3, weights:{jellyfish:5, jellyfish_rare:2.5}, frenzy:"jelly", frenzyAt:0.55 },
+  { id:"night", icon:"🌙", name:"Night Dive", tagline:"Visibility is low. Something glows in the dark.",
+    fog:0x040c18, sky:0x081324, top:0x162745, weights:{squid_giant:3}, dark:true },
+  { id:"treasure", icon:"💰", name:"Lost Treasure", tagline:"An old shipwreck was spotted nearby.",
+    fog:0x1b9299, sky:0x229c9c, top:0x3acdb6, weights:{treasure:5}, frenzy:"treasure", frenzyAt:0.6 }
+];
+
+const TWISTS = [
+  { text:"A sudden storm rolls in halfway through.", speedMult:1.1 },
+  { text:"A rare visitor has been spotted nearby.", rareBoost:2.5 },
+  { text:"The current is unusually strong today.", speedMult:1.2 },
+  { text:"Locals say a feeding frenzy is coming.", forceFrenzy:"feeding" },
+  { text:"It's an unusually calm, quiet day.", speedMult:0.9 },
+  { text:"Something is drawing a crowd today.", crowdBoost:2 },
+  { text:"The reef is thriving today.", fishBoost:2 },
+  { text:"An old shark tale says treasure lies ahead.", forceFrenzy:"treasure" }
+];
+
+const FRENZY_SETS = {
+  feeding: { good:["fish_small","fish_colorful","fish_small"], bomb:"net", label:"FEEDING FRENZY!", sub:"Swipe fast to eat everything!" },
+  jelly:   { good:["jellyfish","jellyfish","fish_small"], bomb:"jellyfish_rare", label:"JELLY SWARM!", sub:"Slice the small ones — dodge the red one!" },
+  treasure:{ good:["treasure","treasure","fish_colorful"], bomb:"net", label:"TREASURE RUSH!", sub:"Slice every chest you can find!" }
+};
+
+const RANKS = [
+  { key:"hunter", title:"The Reef Raider" },
+  { key:"explorer", title:"The Deep Explorer" },
+  { key:"chaos", title:"The Reef's Nightmare" }
+];
+
+const RUN_SECONDS = 120;
+
+/* ============================= STATE ============================= */
+
+/* ===================== SHARK TYPES =====================
+   Exactly THREE things vary between sharks — speed, health, and one perk —
+   so the difference is legible instead of diluted across many small dials.
+   Body scale/size is pushed hard so the silhouette alone tells you which
+   shark you're playing, even before you read a stat. */
+const SHARK_TYPES = [
+  {
+    id:"reef", name:"Reef Shark", tag:"All-rounder. No weaknesses, no edges.",
+    color:0x6fa8c9, fin:0x4d7fa0, scale:{x:1,y:1,z:1}, size:1.0,
+    speedMult:1.0, maxHealth:100, perk:null,
+    stats:{speed:3, health:3, special:1}
+  },
+  {
+    id:"mako", name:"Mako", tag:"Fastest in the ocean. Sleek and fragile.",
+    color:0x2255dd, fin:0x1a3f9e, scale:{x:0.66,y:0.7,z:1.6}, size:0.9, hammer:false,
+    speedMult:1.4, maxHealth:70, perk:null,
+    stats:{speed:5, health:1, special:1}
+  },
+  {
+    id:"bull", name:"Bull Shark", tag:"Armored tank. Slow, but shrugs off hits.",
+    color:0xc98f4a, fin:0xa06f30, scale:{x:1.5,y:1.4,z:0.78}, size:1.25,
+    speedMult:0.8, maxHealth:145, perk:"armor",
+    stats:{speed:1, health:5, special:3}
+  },
+  {
+    id:"hammer", name:"Hammerhead", tag:"Wide senses. Prey notices you late.",
+    color:0xd8dde0, fin:0xaab2b8, scale:{x:1,y:0.94,z:1}, size:1.0, hammer:true,
+    speedMult:1.0, maxHealth:95, perk:"stealth",
+    stats:{speed:3, health:2, special:5}
+  },
+  {
+    id:"tiger", name:"Tiger Shark", tag:"Eats anything. Chaos and boats pay double.",
+    color:0xc9a13a, fin:0x8a6f28, scale:{x:1.08,y:1.02,z:1.05}, size:1.05, stripes:true,
+    speedMult:1.0, maxHealth:105, perk:"chaos",
+    stats:{speed:3, health:3, special:4}
+  }
+];
+let selectedShark = SHARK_TYPES[0];
+let MAX_HEALTH = 100;
+
+let scene, camera, renderer, clock;
+let shark, jaw, tailUpper, tailLower, pecL, pecR, dorsal;
+let swimTime = 0;
+let bubbles = [], godrays = [], kelps = [], worldProps = [];
+let floorTex = null, surfaceTex = null, bubbleTexShared = null;
+let resizeListenersBound = false;
+let wake = [], wakeTimer = 0;
+let prevVX = 0, prevVY = 0, turnSwishCool = 0, swishKick = 0;
+let hitStop = 0, hitFlinch = 0;
+
+/* ===================== EVENT "VOICE" =====================
+   Different encounters should feel different, not just look different.
+   Each mood drives a distinct camera nudge (decaying over its own timescale)
+   plus a distinct fact-card presentation. */
+const MOODS = {
+  majestic:  { camY: 0.9,  camFov: 4,  decay: 0.55, cardClass:"mood-majestic",  holdMs: 3600 },
+  danger:    { camY: -0.3, camFov: -5, decay: 2.4,  cardClass:"mood-danger",    holdMs: 2200 },
+  mysterious:{ camY: 0.15, camFov: -2, decay: 0.9,  cardClass:"mood-mysterious",holdMs: 3000 },
+  curious:   { camY: 0.2,  camFov: 1,  decay: 1.6,  cardClass:"mood-curious",   holdMs: 2600 }
+};
+let camMoodY = 0, camMoodFov = 0, camMoodDecay = 1;
+
+function triggerMoodKick(mood){
+  const m = MOODS[mood];
+  if(!m) return;
+  camMoodY = m.camY;
+  camMoodFov = m.camFov;
+  camMoodDecay = m.decay;
+}
+
+// Scale-in entrance: rare creatures grow into view over roughly a second
+// instead of simply existing at full size the instant they spawn.
+function triggerEntrance(ent, mood){
+  ent.entranceT = 0;
+  ent.entranceDur = mood==="danger" ? 0.5 : (mood==="majestic" ? 1.6 : 1.1);
+  ent.sprite.scale.setScalar(0.05);
+}
+const PROP_DEPTH = 200;
+const FLOOR_Y = -4.2;
+const SHARK_NOSE_Z = -3.1;   // front of the shark's body
+const SHARK_TAIL_Z = 2.5;
+const SURFACE_Y = 10;
+let sharkPos = {x:0, y:1.5};
+let targetPos = {x:0, y:1.5};
+let pointerActive = false, pointerX=0, pointerY=0;
+
+let mode = "start"; // start | story | playing | frenzy | end
+let timeLeft = RUN_SECONDS;
+let health = 100;
+let combo = 0, comboTimer = 0;
+let scores = { hunter:0, explorer:0, chaos:0 };
+let discoveriesThisRun = [];
+let sessionJournal = new Set(); // ids known before this session (loaded from storage)
+let entities = []; // active 3D entities
+let effects = []; // poof/particle effects
+let spawnCooldown = 0;
+let story = null, twist = null;
+let frenzyDone = false, frenzyActive = false;
+let frenzyObjects = [];
+let frenzyTimeLeft = 0;
+let pointerPath = [];
+/* ===================== SPEED MODEL =====================
+   All figures are TRUE world speeds (units/sec), not relative to the shark.
+   The shark cruises at SHARK_CRUISE and sprints at SHARK_CRUISE*SHARK_SPRINT.
+   Closing speed on prey = sharkSpeed - preySpeed, so anything cruising near
+   the shark's own pace has to be run down with a sprint.
+     cruise : relaxed pace before it notices you
+     sprint : panic pace once you're inside `alert`
+     alert  : distance at which it reacts to the shark
+     dir    : "away" flees ahead of you | "toward" comes at you | "static" holds position
+     lat    : how hard it jukes sideways when fleeing
+     stam   : seconds it can hold a sprint before tiring                       */
+const SHARK_CRUISE_BASE = 9;
+const SHARK_SPRINT_BASE = 1.85;
+let SHARK_CRUISE = 9, SHARK_SPRINT = 1.85;
+
+const SPEED_TABLE = {
+  fish_small:     { cruise:3.2, sprint:8.2,  alert:15, dir:"away",   lat:1.5, stam:2.6 },
+  fish_colorful:  { cruise:2.9, sprint:7.6,  alert:14, dir:"away",   lat:1.6, stam:2.4 },
+  seal:           { cruise:5.0, sprint:11.0, alert:18, dir:"away",   lat:1.3, stam:3.2 },
+  turtle:         { cruise:1.4, sprint:2.8,  alert:10, dir:"away",   lat:0.5, stam:2.0 },
+  dolphin:        { cruise:6.2, sprint:12.0, alert:20, dir:"away",   lat:1.1, stam:4.0 },
+  whale:          { cruise:2.8, sprint:4.2,  alert:16, dir:"away",   lat:0.3, stam:3.0 },
+  orca:           { cruise:7.0, sprint:12.5, alert:28, dir:"toward", lat:0.8, stam:5.0 },
+  hammerhead:     { cruise:5.0, sprint:9.5,  alert:16, dir:"away",   lat:0.9, stam:3.0 },
+  squid_giant:    { cruise:2.4, sprint:6.5,  alert:13, dir:"away",   lat:1.2, stam:1.8 },
+  jellyfish:      { cruise:0.25, sprint:0.25, alert:0, dir:"static", lat:0,   stam:0 },
+  jellyfish_rare: { cruise:0.25, sprint:0.25, alert:0, dir:"static", lat:0,   stam:0 },
+  net:            { cruise:0,   sprint:0,    alert:0,  dir:"static", lat:0,   stam:0 },
+  treasure:       { cruise:0,   sprint:0,    alert:0,  dir:"static", lat:0,   stam:0 },
+  swimmer:        { cruise:0.9, sprint:2.0,  alert:9,  dir:"away",   lat:0.7, stam:1.5 },
+  diver:          { cruise:0.7, sprint:1.5,  alert:8,  dir:"away",   lat:0.6, stam:1.5 },
+  boat:           { cruise:7.5, sprint:9.5,  alert:0,  dir:"toward", lat:0,   stam:0 },
+  reef_pillar:    { cruise:0,   sprint:0,    alert:0,  dir:"static", lat:0,   stam:0 },
+  sea_mine:       { cruise:0.3, sprint:0.3,  alert:0,  dir:"static", lat:0,   stam:0 },
+  hook_line:      { cruise:0,   sprint:0,    alert:0,  dir:"static", lat:0,   stam:0 }
+};
+
+let forwardSpeed = SHARK_CRUISE_BASE;
+let dolphinBoostTimer = 0;
+let boosting = false, stamina = 100, sprintActive = false;
+let goldRush = 0, goldRushTimer = 0;
+let lastHitCat = null;
+let lastDamageCause = null;
+let blocked = false, blockCool = 0, blockDir = 0, blockPush = 0, blockStrength = 0;
+let currentFlow = 0;
+let missions = [], missionStats = {};
+let difficulty = 1;
+let camY = 3.5;
+
+const spriteCache = {};
+
+/* ============================= INIT THREE ============================= */
+
+function makeSkyTexture(topHex, bottomHex){
+  const c = document.createElement('canvas');
+  c.width = 8; c.height = 256;
+  const ctx = c.getContext('2d');
+  const top = "#"+topHex.toString(16).padStart(6,'0');
+  const bot = "#"+bottomHex.toString(16).padStart(6,'0');
+  const grad = ctx.createLinearGradient(0,0,0,256);
+  grad.addColorStop(0, top);
+  grad.addColorStop(1, bot);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,8,256);
+  return new THREE.CanvasTexture(c);
+}
+
+function makeFloorTexture(baseHex, dark){
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  const base = "#"+baseHex.toString(16).padStart(6,'0');
+  ctx.fillStyle = base;
+  ctx.fillRect(0,0,256,256);
+  for(let i=0;i<150;i++){
+    const shade = Math.random()>0.5 ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.08)";
+    ctx.fillStyle = shade;
+    const s = 6+Math.random()*22;
+    ctx.beginPath();
+    ctx.ellipse(Math.random()*256, Math.random()*256, s, s*0.6, Math.random()*Math.PI, 0, Math.PI*2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(5,9);
+  return tex;
+}
+
+function makeSurfaceTexture(topHex){
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  const base = "#"+topHex.toString(16).padStart(6,'0');
+  ctx.fillStyle = base;
+  ctx.fillRect(0,0,256,256);
+  // bright interlocking ripples, like light on the underside of the surface
+  ctx.strokeStyle = "rgba(255,255,255,0.55)";
+  ctx.lineWidth = 3;
+  for(let i=0;i<26;i++){
+    ctx.beginPath();
+    const y = Math.random()*256;
+    ctx.moveTo(0,y);
+    for(let x=0;x<=256;x+=16){
+      ctx.lineTo(x, y + Math.sin(x*0.05+i)*8);
+    }
+    ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(255,255,255,0.28)";
+  for(let i=0;i<50;i++){
+    ctx.beginPath();
+    ctx.ellipse(Math.random()*256, Math.random()*256, 10+Math.random()*22, 4+Math.random()*8, Math.random()*Math.PI, 0, Math.PI*2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(8,16);
+  return tex;
+}
+
+function makeRayTexture(){
+  const c = document.createElement('canvas');
+  c.width = 32; c.height = 256;
+  const ctx = c.getContext('2d');
+  const grad = ctx.createLinearGradient(0,0,0,256);
+  grad.addColorStop(0, "rgba(255,255,255,0.55)");
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,32,256);
+  return new THREE.CanvasTexture(c);
+}
+
+function makeBubbleTexture(){
+  const c = document.createElement('canvas');
+  c.width = 32; c.height = 32;
+  const ctx = c.getContext('2d');
+  ctx.beginPath();
+  ctx.arc(16,16,13,0,Math.PI*2);
+  ctx.strokeStyle = "rgba(255,255,255,0.8)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(11,11,3,0,Math.PI*2);
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.fill();
+  return new THREE.CanvasTexture(c);
+}
+
+function initScene(storyDef){
+  const stage = document.getElementById('stage');
+  stage.innerHTML = "";
+
+  scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(storyDef.fog, storyDef.dark?14:19, storyDef.dark?62:86);
+  scene.background = makeSkyTexture(storyDef.top, storyDef.sky);
+
+  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false, preserveDrawingBuffer:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  stage.appendChild(renderer.domElement);
+
+  camera = new THREE.PerspectiveCamera(62, window.innerWidth/window.innerHeight, 0.1, 200);
+  camera.position.set(0, 4, 9);
+
+  // Low ambient + strong key = real light/shadow separation on every creature.
+  const ambient = new THREE.AmbientLight(0x8fd6ff, storyDef.dark ? 0.3 : 0.45);
+  scene.add(ambient);
+  const sun = new THREE.DirectionalLight(0xfff4d6, storyDef.dark ? 0.75 : 1.35);
+  sun.position.set(4, 18, 10);
+  scene.add(sun);
+  // warm rim from behind, separating silhouettes from the water
+  const rimLight = new THREE.DirectionalLight(0xffd9a0, storyDef.dark ? 0.4 : 0.7);
+  rimLight.position.set(-6, 6, -14);
+  scene.add(rimLight);
+  // cool bounce from the seabed
+  const bounce = new THREE.HemisphereLight(0x9ff0e0, 0x1a4a3a, 0.5);
+  scene.add(bounce);
+
+  // seafloor with scrolling mottled texture (drives the sense of forward motion)
+  floorTex = makeFloorTexture(storyDef.dark ? 0x1b4450 : 0x3fa07f, storyDef.dark);
+  const floorGeo = new THREE.PlaneGeometry(160, 400, 1, 1);
+  const floorMat = new THREE.MeshStandardMaterial({
+    color: storyDef.dark ? 0x1b4450 : 0x3fa07f, roughness:1, map: floorTex
+  });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI/2;
+  floor.position.set(0, FLOOR_Y, -120);
+  scene.add(floor);
+
+  // ---- water surface: seen from below as a bright, rippling ceiling ----
+  surfaceTex = makeSurfaceTexture(storyDef.top);
+  const surfMat = new THREE.MeshBasicMaterial({
+    map: surfaceTex, transparent:true, opacity:0.92, side:THREE.DoubleSide, fog:true
+  });
+  const surface = new THREE.Mesh(new THREE.PlaneGeometry(200,420), surfMat);
+  surface.rotation.x = -Math.PI/2;
+  surface.position.set(0, SURFACE_Y, -120);
+  scene.add(surface);
+
+  // bright air/sky slab sitting above the waterline for clear separation
+  const airMat = new THREE.MeshBasicMaterial({ color: storyDef.dark?0x1b2b48:0xbfe9f5, fog:false, side:THREE.DoubleSide });
+  const air = new THREE.Mesh(new THREE.PlaneGeometry(200,420), airMat);
+  air.rotation.x = -Math.PI/2;
+  air.position.set(0, SURFACE_Y+2.6, -120);
+  scene.add(air);
+
+  // ---- scrolling world props (recycled as they pass behind the camera) ----
+  worldProps = [];
+  const rockColors = [0xff7f50, 0x2ec4a0, 0xb26ff0, 0xffc247, 0x3ad9b0, 0xff5f6d];
+  const coralColors = [0xff6b4a, 0xffd93d, 0xff4f9a, 0x4fd6ff, 0xc77dff, 0x5fff9f];
+
+  function addProp(mesh, z, kind, phase, solidR){
+    mesh.position.z = z;
+    scene.add(mesh);
+    worldProps.push({
+      mesh, kind, phase: phase||Math.random()*10, baseY: mesh.position.y,
+      solidR: solidR || 0,      // >0 means the shark can actually crash into it
+      cool: 0                   // hit cooldown so one rock can't drain you repeatedly
+    });
+  }
+
+  // boulders — these are SOLID
+  for(let i=0;i<30;i++){
+    const s = 0.7 + Math.random()*2.2;
+    const mat = new THREE.MeshStandardMaterial({ color: rockColors[Math.floor(Math.random()*rockColors.length)], roughness:0.9, flatShading:true });
+    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s,0), mat);
+    rock.position.set((Math.random()-0.5)*90, FLOOR_Y-0.2+Math.random()*0.6, 0);
+    rock.rotation.set(Math.random(),Math.random(),Math.random());
+    addProp(rock, -Math.random()*PROP_DEPTH, "rock", null, s);
+    worldProps[worldProps.length-1].dmg = 12;
+  }
+
+  // branching coral (stacked cones) — solid too
+  for(let i=0;i<22;i++){
+    const g = new THREE.Group();
+    const col = coralColors[Math.floor(Math.random()*coralColors.length)];
+    const mat = new THREE.MeshStandardMaterial({ color:col, roughness:0.85, flatShading:true });
+    const branches = 3+Math.floor(Math.random()*3);
+    let tallest = 0;
+    for(let b=0;b<branches;b++){
+      const h = 1.2+Math.random()*2.2;
+      tallest = Math.max(tallest, h);
+      const arm = new THREE.Mesh(new THREE.ConeGeometry(0.28,h,6), mat);
+      arm.position.set((Math.random()-0.5)*1.4, h/2, (Math.random()-0.5)*1.4);
+      arm.rotation.z = (Math.random()-0.5)*0.6;
+      g.add(arm);
+    }
+    g.position.set((Math.random()-0.5)*80, FLOOR_Y, 0);
+    g.userData.topY = FLOOR_Y + tallest;
+    addProp(g, -Math.random()*PROP_DEPTH, "coral", null, 1.2);
+    worldProps[worldProps.length-1].dmg = 8;
+  }
+
+  // fan coral (flat discs)
+  for(let i=0;i<14;i++){
+    const col = coralColors[Math.floor(Math.random()*coralColors.length)];
+    const mat = new THREE.MeshStandardMaterial({ color:col, roughness:0.9, side:THREE.DoubleSide });
+    const fan = new THREE.Mesh(new THREE.CircleGeometry(1+Math.random()*1.2, 9, 0, Math.PI), mat);
+    fan.position.set((Math.random()-0.5)*80, FLOOR_Y+0.5, 0);
+    fan.rotation.y = Math.random()*Math.PI;
+    addProp(fan, -Math.random()*PROP_DEPTH, "fan");
+  }
+
+  // kelp stalks (sway independently)
+  kelps = [];
+  for(let i=0;i<26;i++){
+    const h = 3+Math.random()*5.5;
+    const kelpMat = new THREE.MeshStandardMaterial({ color: 0x2f8f5a + Math.floor(Math.random()*0x001a00), roughness:1 });
+    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.2,h,6), kelpMat);
+    stalk.geometry.translate(0,h/2,0);
+    stalk.position.set((Math.random()-0.5)*85, FLOOR_Y, 0);
+    stalk.userData.topY = FLOOR_Y + h;
+    addProp(stalk, -Math.random()*PROP_DEPTH, "kelp", null, 0.75);
+    worldProps[worldProps.length-1].dmg = 6;
+  }
+
+  // SOLID rock outcrops — LIGHT warm stone against the dark cool water, with
+  // bright algae caps, mirroring how the reference lights its boulders.
+  const stoneCols = [0xc9b9a3, 0xd6c7ae, 0xb8a894, 0xe0d2bb];
+  const capCols   = [0x5fd97a, 0x49c46a, 0x7ae88f];
+  for(let i=0;i<16;i++){
+    const s = 3.0+Math.random()*4.2;
+    const stoneMat = new THREE.MeshStandardMaterial({
+      color: stoneCols[Math.floor(Math.random()*stoneCols.length)],
+      roughness:0.92, flatShading:true          // facets catch the key light
+    });
+    const far = new THREE.Mesh(new THREE.DodecahedronGeometry(s,0), stoneMat);
+    far.position.set((Math.random()-0.5)*52, FLOOR_Y + s*0.68, 0);
+    far.rotation.set(Math.random(),Math.random(),Math.random());
+
+    // bright algae cap on top — the strong hue break that makes it pop
+    const cap = new THREE.Mesh(
+      new THREE.SphereGeometry(s*0.82, 10, 6, 0, Math.PI*2, 0, Math.PI*0.42),
+      new THREE.MeshStandardMaterial({
+        color: capCols[Math.floor(Math.random()*capCols.length)],
+        roughness:0.85, flatShading:true
+      })
+    );
+    cap.position.y = s*0.22;
+    far.add(cap);
+
+    // pale rim shell so the silhouette separates from the water behind it
+    const rimShell = new THREE.Mesh(far.geometry, new THREE.MeshBasicMaterial({
+      color:0xdff3ff, transparent:true, opacity:0.16,
+      side:THREE.BackSide, blending:THREE.AdditiveBlending, depthWrite:false, fog:false
+    }));
+    rimShell.scale.setScalar(1.06);
+    far.add(rimShell);
+
+    addProp(far, -Math.random()*PROP_DEPTH, "ridge", null, s*0.8);
+    worldProps[worldProps.length-1].dmg = 14;
+  }
+
+  // far backdrop silhouettes: pure depth, kept well outside the lane
+  const backMat = new THREE.MeshStandardMaterial({ color: storyDef.fog, roughness:1, flatShading:true });
+  for(let i=0;i<12;i++){
+    const s = 5+Math.random()*8;
+    const b = new THREE.Mesh(new THREE.DodecahedronGeometry(s,0), backMat);
+    const side = Math.random()<0.5 ? -1 : 1;
+    b.position.set(side*(45+Math.random()*70), FLOOR_Y+2+Math.random()*4, 0);
+    addProp(b, -Math.random()*PROP_DEPTH, "backdrop");
+  }
+
+  // light shafts (god rays) — also scroll past
+  const rayTex = makeRayTexture();
+  godrays = [];
+  for(let i=0;i<10;i++){
+    const rayMat = new THREE.MeshBasicMaterial({ map:rayTex, transparent:true, opacity: storyDef.dark?0.2:0.58, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide });
+    const ray = new THREE.Mesh(new THREE.PlaneGeometry(5+Math.random()*4, 44), rayMat);
+    ray.position.set((Math.random()-0.5)*50, SURFACE_Y+8, -Math.random()*PROP_DEPTH);
+    ray.rotation.z = (Math.random()-0.5)*0.35;
+    ray.rotation.x = -0.15;
+    scene.add(ray);
+    godrays.push({ mesh:ray, phase:Math.random()*10 });
+  }
+
+  // rising bubbles
+  const bubbleTex = makeBubbleTexture();
+  bubbleTexShared = bubbleTex;
+  foamTexShared = makeFoamTexture();
+  wake = [];
+  bubbles = [];
+  for(let i=0;i<30;i++){
+    const mat = new THREE.SpriteMaterial({ map:bubbleTex, transparent:true, opacity:0.7 });
+    const sp = new THREE.Sprite(mat);
+    const s = 0.12+Math.random()*0.35;
+    sp.scale.set(s,s,1);
+    sp.position.set((Math.random()-0.5)*26, FLOOR_Y+Math.random()*12, -3-Math.random()*50);
+    scene.add(sp);
+    bubbles.push({ sprite:sp, speed:0.7+Math.random()*1.1, wobble:Math.random()*10 });
+  }
+
+  buildShark();
+  buildSharkShadow();
+  if(!resizeListenersBound){
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', ()=>{
+      onResize();
+      setTimeout(onResize, 250);
+    });
+    resizeListenersBound = true;
+  }
+}
+
+let glowCanvas, glowCtx;
+function initGlowLayer(){
+  glowCanvas = document.getElementById('glowLayer');
+  glowCtx = glowCanvas.getContext('2d');
+  sizeGlowLayer();
+}
+function sizeGlowLayer(){
+  if(!glowCanvas) return;
+  glowCanvas.style.width = window.innerWidth+"px";
+  glowCanvas.style.height = window.innerHeight+"px";
+  // deliberately low internal resolution — downsampling itself is most of the "blur"
+  glowCanvas.width = Math.round(window.innerWidth/6);
+  glowCanvas.height = Math.round(window.innerHeight/6);
+}
+
+function onResize(){
+  if(!renderer) return;
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  sizeGlowLayer();
+}
+
+let sharkShadow = null;
+function buildSharkShadow(){
+  const size = 128;
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const ctx = c.getContext('2d');
+  const grad = ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
+  grad.addColorStop(0, "rgba(0,0,0,0.55)");
+  grad.addColorStop(0.7, "rgba(0,0,0,0.25)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,size,size);
+  const tex = new THREE.CanvasTexture(c);
+  const shadowMat = new THREE.MeshBasicMaterial({ map:tex, transparent:true, depthWrite:false, fog:false });
+  sharkShadow = new THREE.Mesh(new THREE.PlaneGeometry(4.2,7.5), shadowMat);
+  sharkShadow.rotation.x = -Math.PI/2;
+  sharkShadow.position.set(0, FLOOR_Y+0.06, 0);
+  scene.add(sharkShadow);
+}
+
+// Fades out as the shark rises toward the surface — a shadow only reads as
+// "grounding" when something is plausibly close enough to the floor to cast it.
+function updateSharkShadow(){
+  if(!sharkShadow || !shark) return;
+  const heightAboveFloor = sharkPos.y - FLOOR_Y;
+  sharkShadow.position.set(shark.position.x, FLOOR_Y+0.06, shark.position.z);
+  const fade = Math.max(0, 1 - heightAboveFloor/9);
+  sharkShadow.material.opacity = fade*0.8;
+}
+
+function buildShark(){
+  shark = new THREE.Group();
+  const T = selectedShark;
+
+  const skinTex = makeSkinTexture(T.color, 0x1c2226);
+  const bodyMat = new THREE.MeshPhysicalMaterial({ color:T.color, map:skinTex, roughness:0.5, clearcoat:0.55, clearcoatRoughness:0.3 });
+  const bellyMat = new THREE.MeshPhysicalMaterial({ color:0xe8e4d9, roughness:0.5, clearcoat:0.6, clearcoatRoughness:0.25 });
+  const finMat = new THREE.MeshPhysicalMaterial({ color:T.fin, roughness:0.42, clearcoat:0.7, clearcoatRoughness:0.22 });
+  const darkMat = new THREE.MeshStandardMaterial({ color:0x161616, roughness:0.4 });
+  const whiteMat = new THREE.MeshStandardMaterial({ color:0xffffff, roughness:0.3 });
+  const sc = T.scale || {x:1,y:1,z:1};
+  const sizeM = T.size || 1;
+
+  // main body: elongated + tapered toward the nose (-Z); per-type proportions
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1,20,16), bodyMat);
+  body.scale.set(0.95*sc.x, 0.8*sc.y, 2.5*sc.z);
+  shark.add(body);
+  addRim(shark, body, 0xbdf3ff, 0.22);
+  addOutline(shark, body, 1.09);
+
+  // pointed snout tip
+  const snout = new THREE.Mesh(new THREE.ConeGeometry(0.55*sc.x,1.1*sc.z,12), bodyMat);
+  snout.rotation.x = -Math.PI/2;
+  snout.position.set(0, 0.02, -2.55*sc.z);
+  shark.add(snout);
+
+  // Hammerhead variant: wide cephalofoil bar with eyes at the tips —
+  // pushed much wider so the silhouette is unmistakable at a glance
+  if(T.hammer){
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(3.6,0.4,0.7), bodyMat);
+    bar.position.set(0, 0.02, -2.05*sc.z);
+    shark.add(bar);
+    const capMat = new THREE.MeshStandardMaterial({ color:0x8a969c, roughness:0.5 });
+    [-1,1].forEach(s=>{
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.7,8), capMat);
+      cap.rotation.x = Math.PI/2;
+      cap.position.set(s*1.8, 0.02, -2.05*sc.z);
+      shark.add(cap);
+    });
+  }
+
+  // Tiger Shark variant: bold dark stripes across the flank — thicker and
+  // darker than the fish's version so it reads clearly on the hero character
+  if(T.stripes){
+    for(let i=0;i<5;i++){
+      const st = new THREE.Mesh(new THREE.TorusGeometry(0.88,0.16,8,16), new THREE.MeshStandardMaterial({color:0x1c1a12, roughness:0.75}));
+      st.position.z = -0.9 + i*0.62;
+      st.rotation.y = Math.PI/2;
+      st.scale.set(1,1.2,1);
+      shark.add(st);
+    }
+  }
+
+  // lighter belly
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.78,16,12), bellyMat);
+  belly.scale.set(0.9*sc.x, 0.5*sc.y, 2.15*sc.z);
+  belly.position.set(0,-0.42,0.05);
+  shark.add(belly);
+
+  // dorsal fin - thin blade
+  dorsal = new THREE.Mesh(new THREE.ConeGeometry(0.7,1.5,3), finMat);
+  dorsal.scale.set(0.5,1,0.22);
+  dorsal.position.set(0,1.15,0.15);
+  dorsal.rotation.y = Math.PI/2;
+  dorsal.rotation.z = -0.12;
+  shark.add(dorsal);
+
+  // tail fin (two blades meeting at the rear, -Z is front so tail is at +Z)
+  tailUpper = new THREE.Mesh(new THREE.ConeGeometry(0.55,1.8,3), finMat);
+  tailUpper.scale.set(0.45,1,0.2);
+  tailUpper.position.set(0,0.55,2.55);
+  tailUpper.rotation.set(0, Math.PI/2, -0.55);
+  shark.add(tailUpper);
+
+  tailLower = new THREE.Mesh(new THREE.ConeGeometry(0.4,1.1,3), finMat);
+  tailLower.scale.set(0.45,1,0.2);
+  tailLower.position.set(0,-0.3,2.5);
+  tailLower.rotation.set(0, Math.PI/2, 0.65);
+  shark.add(tailLower);
+
+  // pectoral fins - thin blades angled down/out
+  pecL = new THREE.Mesh(new THREE.ConeGeometry(0.4,1.3,3), finMat);
+  pecL.scale.set(0.4,1,0.18);
+  pecL.position.set(0.9,-0.25,0.3);
+  pecL.rotation.set(0, Math.PI/2, -1.15);
+  shark.add(pecL);
+  pecR = pecL.clone();
+  pecR.position.x = -0.9;
+  pecR.rotation.z = 1.15;
+  shark.add(pecR);
+
+  // eyes with tiny highlight
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.1,8,8), darkMat);
+  eyeL.position.set(0.42,0.18,-2.05);
+  shark.add(eyeL);
+  const eyeR = eyeL.clone(); eyeR.position.x=-0.42; shark.add(eyeR);
+  const hlL = new THREE.Mesh(new THREE.SphereGeometry(0.03,6,6), whiteMat);
+  hlL.position.set(0.46,0.22,-2.11);
+  shark.add(hlL);
+  const hlR = hlL.clone(); hlR.position.x=-0.38; shark.add(hlR);
+
+  // gill slits
+  for(let i=0;i<3;i++){
+    const gill = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.32,0.05), darkMat);
+    gill.position.set(0.62,-0.05,-1.35+i*0.22);
+    gill.rotation.z = 0.25;
+    shark.add(gill);
+    const gill2 = gill.clone(); gill2.position.x=-0.62; gill2.rotation.z=-0.25; shark.add(gill2);
+  }
+
+  // mouth line + jaw (opens during bite)
+  jaw = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.35,0.5,10,1,true,0,Math.PI), darkMat);
+  jaw.position.set(0,-0.42,-2.35);
+  jaw.rotation.set(Math.PI/2, 0, 0);
+  shark.add(jaw);
+
+  shark.position.set(0,1.5,0);
+  shark.scale.setScalar(sizeM);
+  scene.add(shark);
+}
+
+function biteAnimation(){
+  if(!jaw) return;
+  jaw.rotation.x = Math.PI/2 - 0.55;
+  setTimeout(()=>{ if(jaw) jaw.rotation.x = Math.PI/2; }, 160);
+}
+
+
+/* ============================= SPRITES ============================= */
+
+function getSpriteTexture(type){
+  const def = ENTITY_TYPES[type];
+  const key = type;
+  if(spriteCache[key]) return spriteCache[key];
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.font = (size*0.7)+"px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(def.emoji, size/2, size/2+8);
+  const tex = new THREE.CanvasTexture(canvas);
+  spriteCache[key] = tex;
+  return tex;
+}
+
+function makeSprite(type){
+  const tex = getSpriteTexture(type);
+  const mat = new THREE.SpriteMaterial({ map:tex, transparent:true });
+  const sprite = new THREE.Sprite(mat);
+  const def = ENTITY_TYPES[type];
+  const s = def.radius*2.2;
+  sprite.scale.set(s,s,1);
+  return sprite;
+}
+
+/* =================== PROCEDURAL 3D CREATURES ===================
+   Every animal is real geometry with moving parts, like the shark.
+   Each builder returns a Group whose userData holds the parts that
+   animateCreature() drives each frame. Models are built facing -Z. */
+
+// Wet-skin sheen: MeshPhysicalMaterial's built-in clearcoat gives a glossy
+// highlight along curved surfaces without any custom shader code.
+function mat(color, rough){
+  return new THREE.MeshPhysicalMaterial({
+    color, roughness: rough===undefined?0.4:rough*0.75,
+    clearcoat:0.85, clearcoatRoughness:0.12
+  });
+}
+
+// Rim-light shell: a slightly enlarged, back-face-only, additive-blended copy
+// of a mesh. Grazing-angle faces (the silhouette edge) show through brightly
+// while faces pointing at the camera stay invisible — a classic, cheap
+// approximation of fresnel rim lighting with zero custom GLSL.
+function addRim(parentGroup, bodyMesh, color, strength){
+  const rimMat = new THREE.MeshBasicMaterial({
+    color, transparent:true, opacity: strength===undefined?0.32:strength,
+    side:THREE.BackSide, blending:THREE.AdditiveBlending, depthWrite:false, fog:false
+  });
+  const rim = new THREE.Mesh(bodyMesh.geometry, rimMat);
+  rim.scale.copy(bodyMesh.scale).multiplyScalar(1.045);
+  rim.position.copy(bodyMesh.position);
+  rim.rotation.copy(bodyMesh.rotation);
+  parentGroup.add(rim);
+  return rim;
+}
+
+// Toon-style outline: an inverted-hull shell, solid dark, drawn OUTSIDE the
+// rim glow. This is the single biggest lever for silhouette contrast — a
+// dark contour separates a creature from any background regardless of hue,
+// which is exactly what sells the readability in reference arcade games.
+function addOutline(parentGroup, bodyMesh, scale){
+  const outlineMat = new THREE.MeshBasicMaterial({
+    color:0x060c12, side:THREE.BackSide, depthWrite:true, fog:false
+  });
+  const outline = new THREE.Mesh(bodyMesh.geometry, outlineMat);
+  outline.scale.copy(bodyMesh.scale).multiplyScalar(scale===undefined?1.11:scale);
+  outline.position.copy(bodyMesh.position);
+  outline.rotation.copy(bodyMesh.rotation);
+  parentGroup.add(outline);
+  return outline;
+}
+
+function makeSkinTexture(baseHex, darkHex){
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const ctx = c.getContext('2d');
+  const base = "#"+baseHex.toString(16).padStart(6,'0');
+  ctx.fillStyle = base;
+  ctx.fillRect(0,0,128,128);
+  const dark = "#"+(darkHex||0x000000).toString(16).padStart(6,'0');
+  for(let i=0;i<90;i++){
+    ctx.globalAlpha = 0.05 + Math.random()*0.08;
+    ctx.fillStyle = Math.random()>0.5 ? dark : "#ffffff";
+    const s = 3+Math.random()*9;
+    ctx.beginPath();
+    ctx.ellipse(Math.random()*128, Math.random()*128, s, s*0.6, Math.random()*Math.PI, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2,2);
+  return tex;
+}
+
+function addEyes(g, size, z, spread, y){
+  const eyeMat = mat(0x14181c, 0.3);
+  const wMat = mat(0xffffff, 0.2);
+  [-1,1].forEach(s=>{
+    const e = new THREE.Mesh(new THREE.SphereGeometry(size,8,8), eyeMat);
+    e.position.set(s*spread, y, z);
+    g.add(e);
+    const w = new THREE.Mesh(new THREE.SphereGeometry(size*0.38,6,6), wMat);
+    w.position.set(s*spread+ (s*size*0.25), y+size*0.3, z-size*0.55);
+    g.add(w);
+  });
+}
+
+// generic swimmer: body + wagging vertical tail (fish, hammerhead)
+function buildFish(bodyCol, finCol, r, opts){
+  opts = opts||{};
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(r,14,12), mat(bodyCol));
+  body.scale.set(0.62, 0.9, 1.5);
+  g.add(body);
+  addRim(g, body, 0xbdf3ff, 0.18);
+  addOutline(g, body);
+
+  if(opts.stripes){
+    for(let i=0;i<3;i++){
+      const st = new THREE.Mesh(new THREE.TorusGeometry(r*0.62, r*0.07, 6, 12), mat(opts.stripes,0.8));
+      st.position.z = -r*0.5 + i*r*0.55;
+      st.rotation.y = Math.PI/2;
+      st.scale.set(1,1.35,1);
+      g.add(st);
+    }
+  }
+
+  const tailPivot = new THREE.Group();
+  tailPivot.position.set(0,0,r*1.25);
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(r*0.85, r*1.2, 4), mat(finCol));
+  tail.scale.set(0.22,1,1);
+  tail.rotation.x = Math.PI/2;
+  tail.position.z = r*0.6;
+  tailPivot.add(tail);
+  g.add(tailPivot);
+
+  const dorsal = new THREE.Mesh(new THREE.ConeGeometry(r*0.5, r*0.8, 3), mat(finCol));
+  dorsal.scale.set(0.16,1,0.55);
+  dorsal.position.set(0, r*0.85, 0);
+  dorsal.rotation.y = Math.PI/2;
+  g.add(dorsal);
+
+  const pecs = [];
+  [-1,1].forEach(s=>{
+    const p = new THREE.Mesh(new THREE.ConeGeometry(r*0.35, r*0.7, 3), mat(finCol));
+    p.scale.set(0.14,1,0.5);
+    p.position.set(s*r*0.55, -r*0.15, -r*0.15);
+    p.rotation.set(0, Math.PI/2, s*1.2);
+    g.add(p); pecs.push(p);
+  });
+
+  if(opts.hammer){
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(r*2.2, r*0.32, r*0.55), mat(bodyCol));
+    bar.position.set(0, 0, -r*1.35);
+    g.add(bar);
+    addEyes(g, r*0.13, -r*1.4, r*1.0, 0);
+  } else {
+    addEyes(g, r*0.13, -r*1.05, r*0.32, r*0.15);
+  }
+
+  g.userData = { kind:"fish", tailPivot, pecs, speedMul: opts.speedMul||1 };
+  return g;
+}
+
+// horizontal-fluke swimmers: dolphin, whale, orca
+function buildCetacean(bodyCol, bellyCol, r, opts){
+  opts = opts||{};
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(r,16,12), mat(bodyCol));
+  body.scale.set(0.72, 0.78, 1.9);
+  g.add(body);
+  addRim(g, body, 0xbdf3ff, 0.18);
+  addOutline(g, body);
+
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(r*0.8,12,10), mat(bellyCol));
+  belly.scale.set(0.66, 0.5, 1.7);
+  belly.position.y = -r*0.3;
+  g.add(belly);
+
+  // snout / rostrum
+  const snout = new THREE.Mesh(new THREE.ConeGeometry(r*0.36, r*0.9, 10), mat(bodyCol));
+  snout.rotation.x = -Math.PI/2;
+  snout.position.set(0, -r*0.05, -r*1.85);
+  g.add(snout);
+
+  const tailPivot = new THREE.Group();
+  tailPivot.position.set(0,0,r*1.5);
+  const stalk = new THREE.Mesh(new THREE.SphereGeometry(r*0.3,8,8), mat(bodyCol));
+  stalk.scale.set(0.6,0.6,1.6);
+  tailPivot.add(stalk);
+  // horizontal fluke
+  const fluke = new THREE.Mesh(new THREE.ConeGeometry(r*0.95, r*1.0, 4), mat(bodyCol));
+  fluke.scale.set(1,1,0.16);
+  fluke.rotation.x = Math.PI/2;
+  fluke.position.z = r*0.75;
+  tailPivot.add(fluke);
+  g.add(tailPivot);
+
+  const dorsal = new THREE.Mesh(new THREE.ConeGeometry(r*0.45, opts.tallFin? r*1.5 : r*0.75, 3), mat(bodyCol));
+  dorsal.scale.set(0.16,1,0.5);
+  dorsal.position.set(0, r*0.7, opts.tallFin? 0 : r*0.1);
+  dorsal.rotation.y = Math.PI/2;
+  g.add(dorsal);
+
+  const pecs = [];
+  [-1,1].forEach(s=>{
+    const p = new THREE.Mesh(new THREE.ConeGeometry(r*0.32, r*0.95, 3), mat(bodyCol));
+    p.scale.set(0.16,1,0.45);
+    p.position.set(s*r*0.6, -r*0.25, -r*0.5);
+    p.rotation.set(0, Math.PI/2, s*1.25);
+    g.add(p); pecs.push(p);
+  });
+
+  if(opts.patches){
+    [-1,1].forEach(s=>{
+      const patch = new THREE.Mesh(new THREE.SphereGeometry(r*0.3,8,8), mat(0xffffff,0.4));
+      patch.scale.set(0.35,0.5,0.8);
+      patch.position.set(s*r*0.55, r*0.3, -r*0.95);
+      g.add(patch);
+    });
+  }
+
+  addEyes(g, r*0.12, -r*1.5, r*0.4, r*0.1);
+  g.userData = { kind:"cetacean", tailPivot, pecs, speedMul: opts.speedMul||1 };
+  return g;
+}
+
+// seal: rounded body, paddling fore-flippers
+function buildSeal(r){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(r,14,12), mat(0xd9b38c));
+  body.scale.set(0.78,0.82,1.55);
+  g.add(body);
+  addRim(g, body, 0xbdf3ff, 0.18);
+  addOutline(g, body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(r*0.55,12,10), mat(0xe4c39c));
+  head.position.set(0, r*0.2, -r*1.35);
+  g.add(head);
+  const snout = new THREE.Mesh(new THREE.SphereGeometry(r*0.28,8,8), mat(0xc2ccd1));
+  snout.scale.set(1,0.7,1.2);
+  snout.position.set(0, r*0.05, -r*1.75);
+  g.add(snout);
+
+  const pecs = [];
+  [-1,1].forEach(s=>{
+    const f = new THREE.Mesh(new THREE.ConeGeometry(r*0.3, r*0.8, 3), mat(0xc49a72));
+    f.scale.set(0.2,1,0.6);
+    f.position.set(s*r*0.65, -r*0.2, -r*0.35);
+    f.rotation.set(0, Math.PI/2, s*1.3);
+    g.add(f); pecs.push(f);
+  });
+
+  const tailPivot = new THREE.Group();
+  tailPivot.position.set(0,0,r*1.25);
+  [-1,1].forEach(s=>{
+    const t = new THREE.Mesh(new THREE.ConeGeometry(r*0.35, r*0.7, 3), mat(0xc49a72));
+    t.scale.set(0.18,1,0.5);
+    t.position.set(s*r*0.2,0,r*0.35);
+    t.rotation.set(0, Math.PI/2, s*0.5);
+    tailPivot.add(t);
+  });
+  g.add(tailPivot);
+
+  addEyes(g, r*0.11, -r*1.6, r*0.22, r*0.28);
+  g.userData = { kind:"seal", tailPivot, pecs, speedMul:1 };
+  return g;
+}
+
+// turtle: domed shell + four paddling flippers
+function buildTurtle(r){
+  const g = new THREE.Group();
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(r,14,10), mat(0x4ec26a));
+  shell.scale.set(1.05,0.5,1.2);
+  g.add(shell);
+  addRim(g, shell, 0xbdf3ff, 0.16);
+  addOutline(g, shell, 1.09);
+  const under = new THREE.Mesh(new THREE.SphereGeometry(r*0.92,12,8), mat(0xd8c98a));
+  under.scale.set(1,0.28,1.1);
+  under.position.y = -r*0.2;
+  g.add(under);
+  // shell plates
+  for(let i=0;i<5;i++){
+    const p = new THREE.Mesh(new THREE.SphereGeometry(r*0.22,6,6), mat(0x3d9e58,0.9));
+    p.scale.set(1,0.35,1);
+    p.position.set(Math.cos(i*1.26)*r*0.5, r*0.44, Math.sin(i*1.26)*r*0.6);
+    g.add(p);
+  }
+  const head = new THREE.Mesh(new THREE.SphereGeometry(r*0.32,10,8), mat(0x6fd98a));
+  head.scale.set(0.9,0.8,1.2);
+  head.position.set(0, r*0.05, -r*1.25);
+  g.add(head);
+
+  const pecs = [];
+  [[-1,-0.55],[1,-0.55],[-1,0.6],[1,0.6]].forEach(([s,z])=>{
+    const f = new THREE.Mesh(new THREE.ConeGeometry(r*0.3, r*0.95, 3), mat(0x6fd98a));
+    f.scale.set(0.16,1,0.55);
+    f.position.set(s*r*0.85, -r*0.05, z*r);
+    f.rotation.set(0, Math.PI/2, s*1.35);
+    g.add(f); pecs.push(f);
+  });
+
+  addEyes(g, r*0.09, -r*1.45, r*0.16, r*0.12);
+  g.userData = { kind:"turtle", pecs, speedMul:1 };
+  return g;
+}
+
+// jellyfish: pulsing bell + trailing tentacles
+function buildJelly(col, r){
+  const g = new THREE.Group();
+  const bellMat = new THREE.MeshStandardMaterial({ color:col, roughness:0.3, transparent:true, opacity:0.72, emissive:col, emissiveIntensity:0.55 });
+  const bell = new THREE.Mesh(new THREE.SphereGeometry(r,14,10,0,Math.PI*2,0,Math.PI*0.55), bellMat);
+  bell.scale.set(1,0.85,1);
+  g.add(bell);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(r*0.92, r*0.09, 6, 16), bellMat);
+  rim.rotation.x = Math.PI/2;
+  rim.position.y = r*0.06;
+  g.add(rim);
+  const tents = [];
+  for(let i=0;i<8;i++){
+    const a = (i/8)*Math.PI*2;
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(r*0.05, r*0.02, r*1.9, 5), bellMat);
+    t.geometry.translate(0,-r*0.95,0);
+    t.position.set(Math.cos(a)*r*0.62, 0, Math.sin(a)*r*0.62);
+    g.add(t); tents.push({ mesh:t, phase:i });
+  }
+  g.userData = { kind:"jelly", bell, tents, speedMul:1 };
+  return g;
+}
+
+// giant squid: mantle + curling tentacles
+function buildSquid(r){
+  const g = new THREE.Group();
+  const col = 0xd4553f;
+  const mantle = new THREE.Mesh(new THREE.ConeGeometry(r*0.6, r*2.0, 10), mat(col));
+  mantle.rotation.x = -Math.PI/2;
+  mantle.position.z = r*0.85;
+  g.add(mantle);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(r*0.55,12,10), mat(col));
+  head.scale.set(1,0.9,1);
+  head.position.z = -r*0.3;
+  g.add(head);
+  [-1,1].forEach(s=>{
+    const fin = new THREE.Mesh(new THREE.ConeGeometry(r*0.45,r*0.8,3), mat(0xe0684f));
+    fin.scale.set(0.18,1,0.7);
+    fin.position.set(s*r*0.5,0,r*1.6);
+    fin.rotation.set(0,Math.PI/2,s*1.4);
+    g.add(fin);
+  });
+  const tents = [];
+  for(let i=0;i<8;i++){
+    const a = (i/8)*Math.PI*2;
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(r*0.09, r*0.03, r*1.7, 5), mat(0xe0684f));
+    t.geometry.translate(0,-r*0.85,0);
+    t.position.set(Math.cos(a)*r*0.3, 0, -r*0.75 + Math.sin(a)*r*0.15);
+    t.rotation.x = -Math.PI/2.1;
+    g.add(t); tents.push({ mesh:t, phase:i });
+  }
+  addEyes(g, r*0.2, -r*0.55, r*0.42, r*0.12);
+  g.userData = { kind:"squid", tents, speedMul:1 };
+  return g;
+}
+
+// ---- human / man-made objects ----
+function buildBoat(r){
+  const g = new THREE.Group();
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(r*1.5, r*0.7, r*3.4), mat(0xe8e8e8,0.5));
+  g.add(hull);
+  const bow = new THREE.Mesh(new THREE.ConeGeometry(r*0.75, r*1.3, 4), mat(0xe8e8e8,0.5));
+  bow.rotation.x = -Math.PI/2; bow.rotation.z = Math.PI/4;
+  bow.position.z = -r*2.2;
+  g.add(bow);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(r*1.55, r*0.18, r*3.4), mat(0x2b6fb5,0.5));
+  stripe.position.y = r*0.1;
+  g.add(stripe);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(r*0.9, r*0.6, r*1.2), mat(0xf5f5f5,0.5));
+  cabin.position.set(0, r*0.62, r*0.2);
+  g.add(cabin);
+  const motor = new THREE.Mesh(new THREE.BoxGeometry(r*0.3,r*0.5,r*0.4), mat(0x333a40,0.5));
+  motor.position.set(0,-r*0.1,r*1.85);
+  g.add(motor);
+  g.userData = { kind:"boat", speedMul:1 };
+  return g;
+}
+
+function buildPerson(r, isDiver){
+  const g = new THREE.Group();
+  const suit = isDiver ? 0x1f2a35 : 0xf0a15e;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(r*0.3,10,10), mat(0xf2c396));
+  head.position.set(0, r*0.55, -r*0.15);
+  g.add(head);
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry ? new THREE.SphereGeometry(r*0.34,10,10) : new THREE.SphereGeometry(r*0.34,10,10), mat(suit));
+  torso.scale.set(0.85,1,1.5);
+  g.add(torso);
+  const arms = [];
+  [-1,1].forEach(s=>{
+    const a = new THREE.Mesh(new THREE.CylinderGeometry(r*0.09,r*0.08,r*0.85,6), mat(isDiver?suit:0xf2c396));
+    a.geometry.translate(0,-r*0.42,0);
+    a.position.set(s*r*0.32, r*0.25, -r*0.1);
+    a.rotation.z = s*0.5;
+    g.add(a); arms.push(a);
+  });
+  const legs = [];
+  [-1,1].forEach(s=>{
+    const l = new THREE.Mesh(new THREE.CylinderGeometry(r*0.1,r*0.09,r*0.9,6), mat(isDiver?suit:0x2b6fb5));
+    l.geometry.translate(0,-r*0.45,0);
+    l.position.set(s*r*0.16, -r*0.25, r*0.35);
+    l.rotation.x = 1.5;
+    g.add(l); legs.push(l);
+  });
+  if(isDiver){
+    const tank = new THREE.Mesh(new THREE.CylinderGeometry(r*0.14,r*0.14,r*0.7,8), mat(0xf0c020,0.4));
+    tank.position.set(0, r*0.15, r*0.35);
+    tank.rotation.x = 1.57;
+    g.add(tank);
+    const mask = new THREE.Mesh(new THREE.BoxGeometry(r*0.32,r*0.16,r*0.1), mat(0x7ad9ff,0.2));
+    mask.position.set(0, r*0.58, -r*0.4);
+    g.add(mask);
+  }
+  g.userData = { kind:"person", arms, legs, speedMul:1 };
+  return g;
+}
+
+function buildNet(r){
+  const g = new THREE.Group();
+  const ropeMat = mat(0xb8c4a8, 0.9);
+  const N = 4;
+  for(let i=0;i<=N;i++){
+    const v = new THREE.Mesh(new THREE.CylinderGeometry(r*0.04,r*0.04,r*2.2,4), ropeMat);
+    v.position.set(-r + (i/N)*r*2, 0, 0);
+    g.add(v);
+    const h = new THREE.Mesh(new THREE.CylinderGeometry(r*0.04,r*0.04,r*2.2,4), ropeMat);
+    h.rotation.z = Math.PI/2;
+    h.position.set(0, -r + (i/N)*r*2, 0);
+    g.add(h);
+  }
+  const floatB = new THREE.Mesh(new THREE.SphereGeometry(r*0.18,8,8), mat(0xff7043,0.5));
+  floatB.position.set(0, r*1.15, 0);
+  g.add(floatB);
+  g.userData = { kind:"net", speedMul:1 };
+  return g;
+}
+
+function buildTreasure(r){
+  const g = new THREE.Group();
+  const chest = new THREE.Mesh(new THREE.BoxGeometry(r*1.5, r*0.85, r*1.0), mat(0x7a4a24,0.8));
+  g.add(chest);
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(r*0.52,r*0.52,r*1.5,10,1,false,0,Math.PI), mat(0x8a5a2c,0.8));
+  lid.rotation.z = Math.PI/2;
+  lid.position.y = r*0.42;
+  g.add(lid);
+  [-1,1].forEach(s=>{
+    const band = new THREE.Mesh(new THREE.BoxGeometry(r*0.12,r*0.95,r*1.05), mat(0xf0c040,0.3));
+    band.position.set(s*r*0.5,0,0);
+    g.add(band);
+  });
+  for(let i=0;i<5;i++){
+    const coin = new THREE.Mesh(new THREE.CylinderGeometry(r*0.14,r*0.14,r*0.04,8), mat(0xffd45e,0.2));
+    coin.position.set((Math.random()-0.5)*r, r*0.5+Math.random()*r*0.2, (Math.random()-0.5)*r*0.6);
+    coin.rotation.set(Math.random(),Math.random(),Math.random());
+    g.add(coin);
+  }
+  g.userData = { kind:"treasure", speedMul:1 };
+  return g;
+}
+
+// ---- obstacles ----
+function buildPillar(r){
+  const g = new THREE.Group();
+  const cols = [0x7d5a4a, 0x8a6250, 0x6d5445];
+  let y = -r*3.6;
+  for(let i=0;i<8;i++){
+    const rad = r*(1.35 - i*0.07);
+    const h = r*1.0;
+    const seg = new THREE.Mesh(new THREE.CylinderGeometry(rad*0.86, rad, h, 7), mat(cols[i%3], 0.95));
+    seg.position.y = y + h/2;
+    seg.rotation.y = Math.random();
+    g.add(seg);
+    y += h*0.92;
+  }
+  // coral growth on the sides
+  const coralCols = [0xff8a6e, 0xffc857, 0xff6fae, 0x7ad9ff];
+  for(let i=0;i<7;i++){
+    const c = new THREE.Mesh(new THREE.ConeGeometry(r*0.16, r*0.5, 5), mat(coralCols[i%4], 0.9));
+    const a = Math.random()*Math.PI*2;
+    c.position.set(Math.cos(a)*r*0.7, -r*3.2 + Math.random()*r*6.4, Math.sin(a)*r*0.7);
+    c.rotation.z = (Math.random()-0.5)*1.2;
+    g.add(c);
+  }
+  g.userData = { kind:"pillar", speedMul:0 };
+  return g;
+}
+
+function buildMine(r){
+  const g = new THREE.Group();
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(r*0.72,14,12), mat(0x2b3239, 0.6));
+  g.add(shell);
+  const warn = new THREE.Mesh(new THREE.TorusGeometry(r*0.72, r*0.09, 6, 16), mat(0xd23b2e, 0.5));
+  warn.rotation.x = Math.PI/2;
+  g.add(warn);
+  const spikes = [];
+  for(let i=0;i<10;i++){
+    const a = (i/10)*Math.PI*2;
+    const tilt = (i%2===0) ? 0.6 : -0.6;
+    const sp = new THREE.Mesh(new THREE.ConeGeometry(r*0.13, r*0.45, 5), mat(0x59636b, 0.5));
+    sp.position.set(Math.cos(a)*r*0.75, Math.sin(tilt)*r*0.6, Math.sin(a)*r*0.75);
+    sp.lookAt(new THREE.Vector3(Math.cos(a)*r*2, Math.sin(tilt)*r*1.6, Math.sin(a)*r*2));
+    sp.rotateX(Math.PI/2);
+    g.add(sp); spikes.push(sp);
+  }
+  const light = new THREE.Mesh(new THREE.SphereGeometry(r*0.16,8,8),
+    new THREE.MeshBasicMaterial({ color:0xff3b2e }));
+  light.position.set(0, r*0.78, 0);
+  g.add(light);
+  // tether to the seabed
+  const chain = new THREE.Mesh(new THREE.CylinderGeometry(r*0.05,r*0.05,r*3.2,5), mat(0x3f484f,0.8));
+  chain.position.y = -r*2.2;
+  g.add(chain);
+  g.userData = { kind:"mine", light, speedMul:0 };
+  return g;
+}
+
+function buildHook(r){
+  const g = new THREE.Group();
+  // long line running up toward the surface
+  const line = new THREE.Mesh(new THREE.CylinderGeometry(r*0.035, r*0.035, r*14, 4), mat(0xcfd8c4, 0.9));
+  line.position.y = r*7;
+  g.add(line);
+  const shank = new THREE.Mesh(new THREE.CylinderGeometry(r*0.09,r*0.09,r*1.0,6), mat(0xb8c0c6, 0.35));
+  g.add(shank);
+  const curve = new THREE.Mesh(new THREE.TorusGeometry(r*0.34, r*0.08, 6, 12, Math.PI*1.25), mat(0xb8c0c6, 0.35));
+  curve.position.y = -r*0.5;
+  curve.rotation.z = Math.PI*0.15;
+  g.add(curve);
+  const barb = new THREE.Mesh(new THREE.ConeGeometry(r*0.1, r*0.28, 5), mat(0xb8c0c6, 0.35));
+  barb.position.set(r*0.3, -r*0.35, 0);
+  barb.rotation.z = -0.7;
+  g.add(barb);
+  // bait
+  const bait = new THREE.Mesh(new THREE.SphereGeometry(r*0.3,10,8), mat(0xe07a5f, 0.7));
+  bait.scale.set(1,0.8,1.3);
+  bait.position.y = -r*0.55;
+  g.add(bait);
+  g.userData = { kind:"hook", speedMul:0 };
+  return g;
+}
+
+function makeCreature(type){
+  const def = ENTITY_TYPES[type];
+  const r = def.radius*0.62;
+  switch(type){
+    case "fish_small":     return buildFish(0xff9a3c, 0xffd166, r);            // orange
+    case "fish_colorful":  return buildFish(0xffd93d, 0xff6f3c, r, { stripes:0xe8442e }); // yellow+red
+    case "hammerhead":     return buildFish(0xb8c4cc, 0x8fa0aa, r, { hammer:true });   // pale, bright
+    case "seal":           return buildSeal(r);
+    case "turtle":         return buildTurtle(r);
+    case "dolphin":        return buildCetacean(0x9d7bff, 0xfff0fb, r);         // violet
+    case "whale":          return buildCetacean(0x5b6ee8, 0xe6ecff, r);         // vivid blue-violet
+    case "orca":           return buildCetacean(0x14181c, 0xffffff, r, { tallFin:true, patches:true });
+    case "jellyfish":      return buildJelly(0x7ad9ff, r);
+    case "jellyfish_rare": return buildJelly(0xff5b6e, r);
+    case "squid_giant":    return buildSquid(r);
+    case "boat":           return buildBoat(r);
+    case "diver":          return buildPerson(r, true);
+    case "swimmer":        return buildPerson(r, false);
+    case "net":            return buildNet(r);
+    case "treasure":       return buildTreasure(r);
+    case "reef_pillar":    return buildPillar(r);
+    case "sea_mine":       return buildMine(r);
+    case "hook_line":      return buildHook(r);
+    default:               return buildFish(0xff9a3c, 0xffd166, r);
+  }
+}
+
+// Per-frame limb/tail motion. This is what makes them read as alive.
+function animateCreature(ent, t){
+  const u = ent.sprite.userData;
+  if(!u) return;
+  let sp = 0.75 + (ent.ownV||0)*0.19 + Math.abs(ent.vx)*0.12;
+  // state colours the tempo: frantic when fleeing, sluggish when spent
+  if(ent.state === "PANIC" || ent.state === "HIDE") sp *= 1.7;
+  else if(ent.state === "TIRED") sp *= 0.45;
+  else if(ent.state === "ALERT") sp *= 1.25;
+  else if(ent.state === "HUNT")  sp *= 1.5;
+  const p = t*5*sp + ent.wob;
+  switch(u.kind){
+    case "fish":
+      u.tailPivot.rotation.y = Math.sin(p*1.6)*0.6;
+      u.pecs.forEach((f,i)=>{ f.rotation.x = Math.sin(p*1.2 + i*Math.PI)*0.35; });
+      break;
+    case "cetacean":
+      u.tailPivot.rotation.x = Math.sin(p*0.75)*0.42;      // flukes beat up & down
+      u.pecs.forEach((f,i)=>{ f.rotation.x = Math.sin(p*0.7 + i)*0.2; });
+      break;
+    case "seal":
+      u.tailPivot.rotation.x = Math.sin(p*0.9)*0.4;
+      u.pecs.forEach((f,i)=>{ f.rotation.x = Math.sin(p*0.9 + i*Math.PI)*0.5; });
+      break;
+    case "turtle":
+      u.pecs.forEach((f,i)=>{ f.rotation.x = Math.sin(p*0.6 + i*1.6)*0.65; });
+      break;
+    case "jelly": {
+      const pulse = Math.sin(p*0.7);
+      u.bell.scale.set(1+pulse*0.16, 0.85-pulse*0.18, 1+pulse*0.16);
+      u.tents.forEach(tt=>{ tt.mesh.rotation.x = Math.sin(p*0.7 + tt.phase*0.5)*0.22; });
+      break;
+    }
+    case "squid":
+      u.tents.forEach(tt=>{
+        tt.mesh.rotation.x = -Math.PI/2.1 + Math.sin(p*0.8 + tt.phase*0.7)*0.35;
+      });
+      break;
+    case "person":
+      u.arms.forEach((a,i)=>{ a.rotation.x = Math.sin(p*1.1 + i*Math.PI)*0.9; });
+      u.legs.forEach((l,i)=>{ l.rotation.x = 1.5 + Math.sin(p*1.1 + i*Math.PI)*0.45; });
+      break;
+    case "boat":
+      ent.sprite.rotation.z = Math.sin(t*1.6+ent.wob)*0.06;   // rocking on the swell
+      break;
+    case "net":
+      ent.sprite.rotation.z = Math.sin(t*0.8+ent.wob)*0.12;
+      break;
+    case "mine": {
+      const blink = 0.5 + Math.sin(t*6+ent.wob)*0.5;
+      u.light.material.color.setRGB(1, blink*0.25, blink*0.15);
+      ent.sprite.rotation.y += 0.004;
+      break;
+    }
+    case "hook":
+      ent.sprite.rotation.z = Math.sin(t*0.9+ent.wob)*0.14;
+      break;
+  }
+}
+
+function makePoof(color){
+  const size=64;
+  const canvas = document.createElement('canvas');
+  canvas.width=size; canvas.height=size;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createRadialGradient(size/2,size/2,2,size/2,size/2,size/2);
+  grad.addColorStop(0, color+"ff");
+  grad.addColorStop(1, color+"00");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,size,size);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map:tex, transparent:true, depthWrite:false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(0.3,0.3,1);
+  return sprite;
+}
+
+// A real squid defence: bolting triggers a lingering ink cloud — pure
+// atmosphere, no gameplay effect, just a nice "whoa" moment.
+function spawnInkCloud(ent){
+  if(!scene) return;
+  for(let i=0;i<9;i++){
+    const p = makePoof("#2e1a42");
+    p.position.set(
+      ent.x+(Math.random()-0.5)*0.6, ent.y+(Math.random()-0.5)*0.6, ent.z+(Math.random()-0.5)*0.6
+    );
+    const s = 0.5+Math.random()*0.5;
+    p.scale.set(s,s,1);
+    p.material.opacity = 0.8;
+    scene.add(p);
+    effects.push({ sprite:p, life:0, slow:true });
+  }
+}
+
+/* ============================= SPAWNING ============================= */
+
+function weightedPick(storyDef){
+  // The story's signature entities get a heavy boost for the opening ~18s of
+  // the dive, so "Fishing Tournament" reads as boats-everywhere from the very
+  // first moment rather than slowly ramping in like any other run.
+  const elapsed = RUN_SECONDS - timeLeft;
+  const openingBoost = Math.max(0, 1 - elapsed/18);   // 1 at dive start, fades to 0 by ~18s
+
+  const table = [];
+  for(const key in ENTITY_TYPES){
+    const def = ENTITY_TYPES[key];
+    let w = def.rare ? 0.6 : (def.kind==="hazard" ? 2 : 3);
+    if(def.obstacle) w = 1.6 * difficulty;          // more obstacles later in the dive
+    if(storyDef.weights && storyDef.weights[key]){
+      w *= storyDef.weights[key];
+      w *= (1 + openingBoost*2.2);                  // extra push during the opening window
+    }
+    if(twist){
+      if(twist.rareBoost && def.rare) w *= twist.rareBoost;
+      if(twist.crowdBoost && def.kind==="chaos") w *= twist.crowdBoost;
+      if(twist.fishBoost && (key==="fish_small"||key==="fish_colorful")) w *= twist.fishBoost;
+    }
+    table.push({key, w});
+  }
+  const total = table.reduce((a,b)=>a+b.w,0);
+  let r = Math.random()*total;
+  for(const t of table){ r -= t.w; if(r<=0) return t.key; }
+  return "fish_small";
+}
+
+function bandY(band){
+  switch(band){
+    case "surface": return SURFACE_Y-1.5 + Math.random()*0.6;   // riding the waterline
+    case "upper":   return 5.5 + Math.random()*2.5;
+    case "floor":   return FLOOR_Y+0.6 + Math.random()*1.2;     // resting on the seabed
+    default:        return 1.5 + Math.random()*5;               // mid water
+  }
+}
+
+function spawnEntity(storyDef){
+  const type = weightedPick(storyDef);
+  const def = ENTITY_TYPES[type];
+  const isSchoolFish = (type==="fish_small" || type==="fish_colorful");
+  const count = isSchoolFish ? (6+Math.floor(Math.random()*5)) : 1;
+
+  // pick a behaviour: what is this creature doing in the world?
+  let behaviour;
+  if(type==="boat" || type==="orca") behaviour = "charge";        // comes at you
+  else if(def.kind==="prey") behaviour = "flee";                   // you must chase it down
+  else if(def.obstacle||type==="jellyfish"||type==="jellyfish_rare"||type==="net"||type==="treasure") behaviour = "drift";
+  else behaviour = "cross";                                        // crosses your path
+
+  const baseX = (Math.random()-0.5)*22;
+  let baseY = bandY(def.band);
+  // obstacles need to sit where they physically belong
+  if(type==="reef_pillar")      baseY = FLOOR_Y + 4.5;              // tall column through the water
+  else if(type==="sea_mine")    baseY = FLOOR_Y + 3.5 + Math.random()*3.5;   // tethered, floating
+  else if(type==="hook_line")   baseY = 2.5 + Math.random()*3;      // dangling on its line
+  const baseZ = -38 - Math.random()*38;
+
+  // Speed profile for this species (true world speed, not relative).
+  const sp = SPEED_TABLE[type] || { cruise:2, sprint:4, alert:10, dir:"away", lat:1, stam:2 };
+  const profile = { ...sp };
+
+  /* Heading is a full angle, not a fixed axis:
+       hdg = 0    -> coming straight at the shark
+       hdg = PI   -> swimming straight away, ahead of the shark
+       hdg = ±PI/2 -> crossing the shark's path
+     This is what lets boats sail on any bearing and prey scatter at angles. */
+  let hdg;
+  let anchored = false;
+
+  if(type==="boat"){
+    anchored = Math.random() < 0.35;
+    if(anchored){
+      profile.cruise = 0; profile.sprint = 0; hdg = Math.random()*Math.PI*2;
+    } else {
+      hdg = Math.random()*Math.PI*2;              // any bearing at all
+      profile.cruise = 5.5 + Math.random()*5;
+      profile.sprint = profile.cruise;
+    }
+  } else if(profile.dir === "static"){
+    hdg = Math.random()*Math.PI*2;
+  } else if(behaviour === "cross"){
+    hdg = (Math.random()<0.5 ? 1 : -1) * (Math.PI/2 + (Math.random()-0.5)*0.9);
+  } else if(profile.dir === "toward"){
+    hdg = (Math.random()-0.5)*0.8;                // roughly head-on, with spread
+  } else {
+    hdg = Math.PI + (Math.random()-0.5)*1.5;      // fleeing ahead, but at varied angles
+  }
+
+  // Individual variation so no two of a species move identically
+  const vary = 0.85 + Math.random()*0.3;
+  profile.cruise *= vary;
+  profile.sprint *= vary;
+
+  for(let i=0;i<count;i++){
+    const mesh = makeCreature(type);
+    const x = baseX + (isSchoolFish ? (Math.random()-0.5)*3.4 : 0);
+    const y = baseY + (isSchoolFish ? (Math.random()-0.5)*2.0 : 0);
+    const z = baseZ + (isSchoolFish ? (Math.random()-0.5)*4.5 : 0);
+    mesh.position.set(x,y,z);
+    scene.add(mesh);
+
+    entities.push({
+      type, sprite:mesh, x, y, z, behaviour, profile, anchored,
+      hdg: hdg + (isSchoolFish ? (Math.random()-0.5)*0.35 : 0),  // schools fan out slightly
+      ownV: profile.cruise,
+      vx: 0, vz: 0,
+      vy: 0,
+      stam: 1,
+      state: "CRUISE", stateT: 0,
+      hit:false, seenTriggered:false, wob:Math.random()*10,
+      baseScale: def.radius*2.2
+    });
+  }
+}
+
+/* ============================= JOURNAL / STORAGE ============================= */
+
+async function loadJournal(){
+  try{
+    const res = await window.storage.get('oceanJournal', false);
+    if(res && res.value){
+      const arr = JSON.parse(res.value);
+      arr.forEach(id => sessionJournal.add(id));
+    }
+  }catch(e){ /* no journal yet */ }
+}
+
+let journalSaveWarned = false;
+async function saveJournal(){
+  try{
+    await window.storage.set('oceanJournal', JSON.stringify(Array.from(sessionJournal)), false);
+  }catch(e){
+    if(!journalSaveWarned){ console.warn("Ocean Journal persistence unavailable in this preview — discoveries still work this session."); journalSaveWarned = true; }
+  }
+}
+
+function discover(type){
+  const isNew = !sessionJournal.has(type);
+  if(isNew){
+    sessionJournal.add(type);
+    discoveriesThisRun.push(type);
+    saveJournal();
+    addDiscoveryChip(type);
+  }
+  showFact(type);
+}
+
+function addDiscoveryChip(type){
+  const strip = document.getElementById('discoveryStrip');
+  if(!strip) return;
+  const def = ENTITY_TYPES[type];
+  const chip = document.createElement('div');
+  chip.className = 'dchip new';
+  chip.innerHTML = '<span class="dchip-label">Discovered</span><span class="dchip-name">'+def.name+'</span>';
+  strip.appendChild(chip);
+  setTimeout(()=>chip.classList.remove('new'), 900);
+  // keep the strip to the most recent few finds
+  while(strip.children.length > 4) strip.removeChild(strip.firstChild);
+}
+
+let factTimer = null;
+function showFact(type){
+  const def = ENTITY_TYPES[type];
+  document.getElementById('factBody').innerHTML = "<b>"+def.name+".</b> "+def.fact;
+  const card = document.getElementById('factCard');
+  const title = document.getElementById('factTitle');
+
+  // strip any previous mood class, then apply this one
+  Object.values(MOODS).forEach(m=>card.classList.remove(m.cardClass));
+  const mood = def.mood && MOODS[def.mood];
+  if(mood){
+    card.classList.add(mood.cardClass);
+    title.textContent = def.mood==="danger" ? "⚠️ DANGER" : def.mood==="majestic" ? "✨ A MAJESTIC SIGHT" : def.mood==="mysterious" ? "🌑 SOMETHING STIRS" : "💡 DID YOU KNOW?";
+  } else {
+    title.textContent = "💡 DID YOU KNOW?";
+  }
+
+  card.classList.add('show');
+  clearTimeout(factTimer);
+  factTimer = setTimeout(()=> card.classList.remove('show'), mood ? mood.holdMs : 2600);
+}
+
+/* ============================= SCORING / POPUPS ============================= */
+
+/* ===================== MISSIONS ===================== */
+
+const MISSION_POOL = [
+  { id:"eat10",    text:"Eat 10 fish",              goal:10, bonus:1500, track:(k,t,d)=> k==="eat" && (t==="fish_small"||t==="fish_colorful") },
+  { id:"eat20",    text:"Eat 20 creatures",         goal:20, bonus:2500, track:(k,t,d)=> k==="eat" },
+  { id:"seal3",    text:"Catch 3 seals",            goal:3,  bonus:2000, track:(k,t,d)=> k==="eat" && t==="seal" },
+  { id:"boat2",    text:"Raid 2 boats",             goal:2,  bonus:2000, track:(k,t,d)=> k==="eat" && t==="boat" },
+  { id:"chaos4",   text:"Cause chaos 4 times",      goal:4,  bonus:2200, track:(k,t,d)=> k==="eat" && d && d.cat==="chaos" },
+  { id:"rare1",    text:"Find something rare",      goal:1,  bonus:1800, track:(k,t,d)=> k==="eat" && d && d.rare },
+  { id:"combo8",   text:"Reach an 8 chain",         goal:1,  bonus:2000, track:(k)=> k==="combo8" },
+  { id:"gold1",    text:"Trigger a Gold Rush",      goal:1,  bonus:2500, track:(k)=> k==="goldrush" },
+  { id:"clean20",  text:"Survive 20s undamaged",    goal:20, bonus:2200, timed:true },
+  { id:"treasure1",text:"Recover sunken treasure",  goal:1,  bonus:2000, track:(k,t)=> k==="eat" && t==="treasure" }
+];
+
+function setupMissions(){
+  const pool = [...MISSION_POOL].sort(()=>Math.random()-0.5);
+  missions = pool.slice(0,3).map(m=>({ ...m, progress:0, done:false }));
+  missionStats = { cleanTime:0 };
+  renderMissions();
+}
+
+function renderMissions(){
+  const box = document.getElementById('missionBox');
+  if(!box) return;
+  box.innerHTML = missions.map(m=>
+    '<div class="mrow'+(m.done?' done':'')+'">'+
+      '<span class="mtick">'+(m.done?'✓':'○')+'</span>'+
+      '<span class="mtext">'+m.text+'</span>'+
+      '<span class="mprog">'+Math.min(m.progress,m.goal)+'/'+m.goal+'</span>'+
+    '</div>'
+  ).join('');
+}
+
+function missionEvent(kind, type, def){
+  let changed = false;
+  if(kind==="damage"){ missionStats.cleanTime = 0; }
+  missions.forEach(m=>{
+    if(m.done || m.timed) return;
+    if(m.track && m.track(kind, type, def)){
+      m.progress++;
+      changed = true;
+      if(m.progress >= m.goal) completeMission(m);
+    }
+  });
+  if(changed) renderMissions();
+}
+
+function updateTimedMissions(dt){
+  missionStats.cleanTime += dt;
+  let changed = false;
+  missions.forEach(m=>{
+    if(m.done || !m.timed) return;
+    const p = Math.floor(missionStats.cleanTime);
+    if(p !== m.progress){ m.progress = p; changed = true; }
+    if(missionStats.cleanTime >= m.goal) completeMission(m);
+  });
+  if(changed) renderMissions();
+}
+
+function completeMission(m){
+  if(m.done) return;
+  m.done = true;
+  m.progress = m.goal;
+  scores.explorer += m.bonus;
+  announce("MISSION COMPLETE  +"+m.bonus, "#5ff0dd");
+  renderMissions();
+  updateHUD();
+}
+
+/* ===================== SCORING & GAME FEEL ===================== */
+
+const POINT_SCALE = 10;                 // scores read as real numbers, not single digits
+
+// Combo tiers — reaching a new tier is announced loudly.
+function comboMultiplier(){
+  if(combo >= 20) return 10;
+  if(combo >= 15) return 8;
+  if(combo >= 10) return 5;
+  if(combo >= 6)  return 3;
+  if(combo >= 3)  return 2;
+  return 1;
+}
+
+const STREAK_CALLS = [
+  { at:3,  text:"NICE!" },
+  { at:6,  text:"TASTY!" },
+  { at:10, text:"FEEDING FRENZY!" },
+  { at:15, text:"UNSTOPPABLE!" },
+  { at:20, text:"APEX PREDATOR!" }
+];
+
+function addScore(cat, amount, worldPos){
+  const mult = comboMultiplier() * (goldRushTimer>0 ? 2 : 1) * (cat==="chaos" && selectedShark.perk==="chaos" ? 1.5 : 1);
+  const total = Math.round(amount * POINT_SCALE * mult);
+  scores[cat] += total;
+  updateHUD();
+  floatPopup("+"+total, worldPos, cat, mult>1);
+  return total;
+}
+
+function floatPopup(text, worldPos, cat, big){
+  const vec = worldPos.clone().project(camera);
+  const x = (vec.x*0.5+0.5)*window.innerWidth;
+  const y = (1-(vec.y*0.5+0.5))*window.innerHeight;
+  const isDamage = cat==="damage";
+  const el = document.createElement('div');
+  el.className = 'popup' + (big ? ' popup-big' : '') + (isDamage ? ' popup-damage' : '');
+  el.textContent = text;
+  el.style.left = x+"px";
+  el.style.top = y+"px";
+  el.style.color = isDamage?"#ff3b30":cat==="hunter"?"#5ff0dd":cat==="explorer"?"#ffd166":cat==="chaos"?"#ff8a6e":"#ffffff";
+  document.body.appendChild(el);
+  let t=0;
+  const anim = ()=>{
+    t+=16;
+    const p = t/900;
+    if(isDamage){
+      // damage shakes and drops instead of rising, so it never reads as a score gain
+      const jitter = Math.sin(t*0.09)*4*(1-p);
+      el.style.transform = "translate(-50%,-50%) translate("+jitter+"px,"+(t*0.045)+"px) scale("+(1.3-p*0.3)+")";
+    } else {
+      const pop = t<140 ? (1 + (1-t/140)*0.7) : 1;      // punchy scale-in
+      el.style.transform = "translate(-50%,-50%) translateY("+(-t*0.075)+"px) scale("+pop+")";
+    }
+    el.style.opacity = String(1 - p);
+    if(t<900) requestAnimationFrame(anim); else el.remove();
+  };
+  requestAnimationFrame(anim);
+}
+
+// Big centre-screen announcement
+let bannerTimer = null;
+function announce(text, color){
+  const el = document.getElementById('announce');
+  el.textContent = text;
+  el.style.color = color || "#ffd166";
+  el.classList.remove('show');
+  void el.offsetWidth;                                  // restart the animation
+  el.classList.add('show');
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(()=> el.classList.remove('show'), 1300);
+}
+
+function bumpCombo(){
+  const before = combo;
+  combo++;
+  comboTimer = 2.6;
+  const el = document.getElementById('comboEl');
+  const mult = comboMultiplier();
+  if(combo>=2){
+    el.innerHTML = "🔗 "+combo+" CHAIN <b>x"+mult+"</b>";
+    el.classList.add('show');
+  }
+  if(combo===8) missionEvent("combo8");
+  STREAK_CALLS.forEach(sc=>{
+    if(before < sc.at && combo >= sc.at) announce(sc.text, "#ffd166");
+  });
+  // Gold Rush charge
+  if(goldRushTimer<=0){
+    const grGain = (lastHitCat==="chaos" && selectedShark.perk==="chaos") ? 9 : 7;
+    goldRush = Math.min(100, goldRush + grGain);
+    if(goldRush >= 100) startGoldRush();
+  }
+}
+
+function resetCombo(){
+  combo = 0;
+  document.getElementById('comboEl').classList.remove('show');
+}
+
+function startGoldRush(){
+  goldRush = 0;
+  goldRushTimer = 9;
+  announce("GOLD RUSH!", "#ffdf6e");
+  missionEvent("goldrush");
+  document.body.classList.add('goldrush');
+  camMoodFov = 8; camMoodDecay = 3.2;   // quick punchy widen, settles fast
+}
+function endGoldRush(){
+  document.body.classList.remove('goldrush');
+}
+
+/* screen shake */
+let shakeAmt = 0;
+function shake(amount){ shakeAmt = Math.min(1.2, shakeAmt + amount); }
+
+let hpBarEl = null, hpFillEl = null;
+function updateSharkHpBar(){
+  if(!hpBarEl){ hpBarEl = document.getElementById('sharkHpBar'); hpFillEl = document.getElementById('sharkHpFill'); }
+  if(!hpBarEl || !shark || !camera) return;
+
+  // sits just above the shark's head, scaled so it clears bigger sharks (Bull) too
+  const sizeM = (selectedShark && selectedShark.size) || 1;
+  const worldPos = new THREE.Vector3(shark.position.x, shark.position.y + 0.55*sizeM + 0.15, shark.position.z);
+  const vec = worldPos.project(camera);
+
+  // behind the camera or off-screen: hide rather than show a garbled position
+  if(vec.z > 1){ hpBarEl.classList.remove('visible'); return; }
+
+  const x = (vec.x*0.5+0.5)*window.innerWidth;
+  const y = (1-(vec.y*0.5+0.5))*window.innerHeight;
+  hpBarEl.style.left = x+"px";
+  hpBarEl.style.top = y+"px";
+  hpBarEl.classList.add('visible');
+
+  const pct = Math.max(0, (health/MAX_HEALTH)*100);
+  hpFillEl.style.width = pct+"%";
+  hpBarEl.classList.toggle('critical', pct < 28);
+}
+
+function updateHUD(){
+  document.getElementById('hunterScore').textContent = scores.hunter.toLocaleString();
+  document.getElementById('explorerScore').textContent = scores.explorer.toLocaleString();
+  document.getElementById('chaosScore').textContent = scores.chaos.toLocaleString();
+  const healthPct = Math.max(0, (health/MAX_HEALTH)*100);
+  document.getElementById('healthbar').style.width = healthPct+"%";
+  const hb = document.getElementById('healthbar');
+  hb.classList.toggle('critical', healthPct < 28);
+  const hn = document.getElementById('healthNum');
+  if(hn) hn.textContent = "❤️ "+Math.max(0,Math.round(health))+"/"+MAX_HEALTH;
+  const gr = document.getElementById('goldrushbar');
+  if(gr) gr.style.width = (goldRushTimer>0 ? (goldRushTimer/9)*100 : goldRush)+"%";
+  const grw = document.getElementById('goldrushwrap');
+  if(grw) grw.classList.toggle('active', goldRushTimer>0);
+  const m = Math.floor(Math.max(0,timeLeft)/60);
+  const s = Math.floor(Math.max(0,timeLeft)%60);
+  document.getElementById('timerNum').textContent = m+":"+(s<10?"0":"")+s;
+  document.getElementById('timer').classList.toggle('urgent', timeLeft <= 15 && timeLeft > 0);
+}
+
+/* ============================= HIT RESOLUTION ============================= */
+
+function resolveHit(ent){
+  const def = ENTITY_TYPES[ent.type];
+  ent.hit = true;
+  const worldPos = ent.sprite.position.clone();
+
+  if(def.kind==="hazard"){
+    if(goldRushTimer > 0){
+      // invincible during Gold Rush — smash straight through
+      addScore("chaos", Math.round((def.damage||10)*0.6), worldPos);
+      spawnPoof(worldPos, "#ffd166");
+      shake(0.35);
+    } else {
+      health -= def.damage * (selectedShark.perk==="armor"?0.8:1);
+      lastDamageCause = def.name;
+      resetCombo();
+      goldRush = Math.max(0, goldRush - 25);
+      flashDamage();
+      triggerHitReaction();
+      spawnPoof(worldPos, "#ff6f5e");
+      shake(0.55);
+      floatPopup("-"+def.damage+" HP", worldPos, "damage");
+      missionEvent("damage");
+    }
+  } else {
+    lastHitCat = def.cat;
+    bumpCombo();
+    if(def.cat) addScore(def.cat, def.points, worldPos);
+    spawnPoof(worldPos, def.cat==="hunter"?"#3fd7c9":def.cat==="explorer"?"#ffd166":"#ff9d8a");
+    biteAnimation();
+    shake(def.radius>1.8 ? 0.4 : 0.18);
+    // eating restores health — this is what keeps you alive against hunger
+    const food = def.kind==="prey" ? 9 + def.radius*5 : 5;
+    health = Math.min(MAX_HEALTH, health + food);
+    missionEvent("eat", ent.type, def);
+    if(def.boost){ dolphinBoostTimer = 3; }
+  }
+
+  if(!sessionJournal.has(ent.type) || def.onHitOnly){
+    discover(ent.type);
+  }
+
+  removeEntity(ent);
+  if(health<=0){ health=0; endRun(); }
+  updateHUD();
+}
+
+function spawnPoof(pos, color){
+  const p = makePoof(color);
+  p.position.copy(pos);
+  scene.add(p);
+  effects.push({ sprite:p, life:0 });
+}
+
+function flashDamage(){
+  document.body.style.boxShadow = "inset 0 0 140px 40px rgba(255,40,25,0.75)";
+  document.body.style.transition = "box-shadow 0.08s ease-out";
+  setTimeout(()=>{
+    document.body.style.transition = "box-shadow 0.5s ease-out";
+    document.body.style.boxShadow = "none";
+  }, 90);
+}
+
+/* Real hit reaction: a brief freeze-frame for impact weight (classic "hit
+   stop"), then the shark visibly recoils and winces rather than just
+   showing a number. Works for every kind of damage, not only obstacles. */
+function triggerHitReaction(){
+  hitStop = 0.07;
+  hitFlinch = 1;
+}
+
+function removeEntity(ent){
+  scene.remove(ent.sprite);
+  const idx = entities.indexOf(ent);
+  if(idx>=0) entities.splice(idx,1);
+}
+
+/* ============================= FRENZY MODE ============================= */
+
+function maybeTriggerFrenzy(elapsedFraction){
+  if(frenzyActive || frenzyDone) return;
+  let type = null;
+  if(twist && twist.forceFrenzy && elapsedFraction >= 0.4) type = twist.forceFrenzy;
+  else if(story.frenzy && elapsedFraction >= story.frenzyAt) type = story.frenzy;
+  if(type){
+    frenzyDone = true;
+    startFrenzy(type);
+  }
+}
+
+function startFrenzy(type){
+  frenzyActive = true;
+  mode = "frenzy";
+  if(hpBarEl) hpBarEl.classList.remove('visible');
+  entities.slice().forEach(removeEntity);
+  const set = FRENZY_SETS[type];
+  const banner = document.getElementById('frenzyBanner');
+  banner.innerHTML = set.label + "<span>"+set.sub+"</span>";
+  banner.classList.add('show');
+  setTimeout(()=> banner.classList.remove('show'), 1400);
+
+  frenzyTimeLeft = 10;
+  frenzyObjects = [];
+  camera.position.set(0,2,8);
+  camera.lookAt(0,2,-6);
+
+  let spawned = 0;
+  const spawnInt = setInterval(()=>{
+    if(!frenzyActive || spawned>=16){ clearInterval(spawnInt); return; }
+    spawned++;
+    const isBomb = Math.random()<0.22;
+    const type2 = isBomb ? set.bomb : set.good[Math.floor(Math.random()*set.good.length)];
+    const sprite = makeSprite(type2);
+    const x = (Math.random()-0.5)*9;
+    sprite.position.set(x,-5,-6);
+    scene.add(sprite);
+    frenzyObjects.push({ type:type2, sprite, x, y:-5, vx:(Math.random()-0.5)*2, vy:9+Math.random()*3, isBomb, sliced:false });
+  }, 420);
+
+  setTimeout(()=>{ if(frenzyActive) endFrenzy(); }, 10500);
+}
+
+function endFrenzy(){
+  frenzyActive = false;
+  mode = "playing";
+  frenzyObjects.forEach(o=>scene.remove(o.sprite));
+  frenzyObjects = [];
+  floatPopup("Frenzy complete!", new THREE.Vector3(0,2,-2), "hunter");
+}
+
+function sliceFrenzyObject(o){
+  o.sliced = true;
+  const def = ENTITY_TYPES[o.type];
+  if(o.isBomb){
+    health -= def.damage || 15;
+    lastDamageCause = def.name || "a bomb";
+    resetCombo();
+    flashDamage();
+    triggerHitReaction();
+  } else {
+    bumpCombo();
+    if(def.cat) addScore(def.cat, def.points, o.sprite.position.clone());
+  }
+  spawnPoof(o.sprite.position.clone(), o.isBomb?"#ff6f5e":"#ffd166");
+  scene.remove(o.sprite);
+  const idx = frenzyObjects.indexOf(o);
+  if(idx>=0) frenzyObjects.splice(idx,1);
+  updateHUD();
+  if(health<=0){ health=0; endFrenzy(); endRun(); }
+}
+
+/* ============================= INPUT ============================= */
+
+function screenToNorm(clientX, clientY){
+  return {
+    x: (clientX/window.innerWidth)*2-1,
+    y: (clientY/window.innerHeight)*2-1
+  };
+}
+
+function onPointerDown(e){
+  pointerActive = true;
+  const n = screenToNorm(e.clientX, e.clientY);
+  pointerX=n.x; pointerY=n.y;
+  pointerPath = [{x:n.x,y:n.y,t:performance.now()}];
+}
+function onPointerMove(e){
+  if(!pointerActive) return;
+  const n = screenToNorm(e.clientX, e.clientY);
+  pointerX=n.x; pointerY=n.y;
+  pointerPath.push({x:n.x,y:n.y,t:performance.now()});
+  if(pointerPath.length>6) pointerPath.shift();
+  if(mode==="frenzy") checkSliceCollisions();
+}
+function onPointerUp(){ pointerActive = false; }
+
+document.getElementById('stage').addEventListener('pointerdown', onPointerDown);
+window.addEventListener('pointermove', onPointerMove);
+window.addEventListener('pointerup', onPointerUp);
+
+function checkSliceCollisions(){
+  if(pointerPath.length<2) return;
+  const a = pointerPath[pointerPath.length-2];
+  const b = pointerPath[pointerPath.length-1];
+  // convert normalized coords to world coords matching frenzy spawn range
+  const ax = a.x*6.5, ay = -a.y*4.5+1.5;
+  const bx = b.x*6.5, by = -b.y*4.5+1.5;
+  frenzyObjects.slice().forEach(o=>{
+    if(o.sliced) return;
+    const d = distToSegment(o.sprite.position.x, o.sprite.position.y, ax,ay,bx,by);
+    if(d < 1.0) sliceFrenzyObject(o);
+  });
+}
+
+function distToSegment(px,py,ax,ay,bx,by){
+  const dx=bx-ax, dy=by-ay;
+  const len2 = dx*dx+dy*dy;
+  let t = len2===0?0:((px-ax)*dx+(py-ay)*dy)/len2;
+  t = Math.max(0,Math.min(1,t));
+  const cx = ax+t*dx, cy = ay+t*dy;
+  return Math.hypot(px-cx, py-cy);
+}
+
+/* ============================= MAIN LOOP ============================= */
+
+function animate(){
+  requestAnimationFrame(animate);
+  let dt = Math.min(clock.getDelta(), 0.05);
+  if(hitStop > 0){ hitStop -= 0.016; dt *= 0.05; }   // brief freeze-frame on impact
+  hitFlinch = Math.max(0, hitFlinch - 0.016*4.5);
+
+  if(mode==="playing"){
+    updatePlaying(dt);
+  } else if(mode==="frenzy"){
+    updateFrenzy(dt);
+  }
+
+  updateAtmosphere(dt);
+  updateEffects(dt);
+  renderer.render(scene, camera);
+
+  if(glowCtx){
+    glowCtx.clearRect(0,0,glowCanvas.width,glowCanvas.height);
+    glowCtx.drawImage(renderer.domElement, 0, 0, glowCanvas.width, glowCanvas.height);
+  }
+}
+
+function makeFoamTexture(){
+  const c = document.createElement('canvas');
+  c.width = 48; c.height = 24;
+  const ctx = c.getContext('2d');
+  ctx.beginPath();
+  ctx.ellipse(24,12,20,9,0,0,Math.PI*2);
+  const grad = ctx.createRadialGradient(24,12,2,24,12,20);
+  grad.addColorStop(0,"rgba(255,255,255,0.9)");
+  grad.addColorStop(1,"rgba(255,255,255,0)");
+  ctx.fillStyle = grad;
+  ctx.fill();
+  return new THREE.CanvasTexture(c);
+}
+
+/* Generic trail-particle pool. One system, many uses: the shark's wake,
+   fast-swimming fish, dolphin porpoise spray, and boat wakes all spawn into
+   this same array so there's only one update loop to maintain. */
+function spawnTrail(x, y, z, opts){
+  if(!scene) return;
+  opts = opts || {};
+  const tex = opts.foam ? foamTexShared : bubbleTexShared;
+  if(!tex) return;
+  const m = new THREE.SpriteMaterial({ map:tex, transparent:true, opacity: opts.opacity||0.5, depthWrite:false });
+  const sp = new THREE.Sprite(m);
+  const s = opts.size || (0.1+Math.random()*0.2);
+  sp.scale.set(s, opts.foam ? s*0.5 : s, 1);
+  sp.position.set(x,y,z);
+  scene.add(sp);
+  wake.push({ sprite:sp, life:0, maxLife: opts.life||1.2, baseOp: opts.opacity||0.5, grow: opts.grow||0, rise: opts.rise===undefined?0.5:opts.rise });
+}
+
+function updateWake(dt, flow){
+  wake = wake.filter(w=>{
+    w.life += dt;
+    w.sprite.position.z += flow*dt;          // streams back at exactly shark speed
+    w.sprite.position.y += dt*w.rise;
+    if(w.grow) w.sprite.scale.multiplyScalar(1 + w.grow*dt);
+    const t = w.life/w.maxLife;
+    w.sprite.material.opacity = Math.max(0, w.baseOp*(1-t));
+    if(t >= 1){ scene.remove(w.sprite); return false; }
+    return true;
+  });
+}
+
+function spawnWake(){
+  const boost = sprintActive;
+  spawnTrail(
+    sharkPos.x + (Math.random()-0.5)*1.6,
+    sharkPos.y + (Math.random()-0.5)*1.2,
+    1.6 + Math.random()*0.8,
+    { size: boost ? 0.22+Math.random()*0.3 : 0.1+Math.random()*0.22,
+      opacity: boost ? 0.7 : 0.55, life: boost ? 1.7 : 1.4 }
+  );
+}
+
+/* A sharp turn gets a dramatic fan-burst off the tail, like a real evasive
+   swish rather than a smooth glide. */
+function spawnTurnSwish(strength){
+  const n = 5 + Math.floor(strength*4);
+  for(let i=0;i<n;i++){
+    const spread = (Math.random()-0.5)*2.2;
+    spawnTrail(
+      sharkPos.x + spread*0.6,
+      sharkPos.y + (Math.random()-0.5)*0.8,
+      1.8 + Math.random()*0.6,
+      { size:0.16+Math.random()*0.26, opacity:0.65, life:0.55+Math.random()*0.3, rise:0.3 }
+    );
+  }
+  shake(0.22 + strength*0.15);
+}
+
+function updateAtmosphere(dt){
+  swimTime += dt;
+
+  // how fast the world is flowing past right now
+  const flow = (mode==="playing") ? currentFlow : 0;
+
+  // wake trailing off the shark: an unambiguous cue that YOU are the one moving
+  if(mode==="playing"){
+    wakeTimer -= dt;
+    if(wakeTimer <= 0){ spawnWake(); wakeTimer = sprintActive ? 0.035 : 0.085; }
+  }
+  updateWake(dt, flow);
+
+  // scrolling seabed texture — the strongest forward-motion cue
+  if(floorTex){ floorTex.offset.y -= flow*dt*0.0225; }
+  if(surfaceTex){ surfaceTex.offset.y -= flow*dt*0.0381; surfaceTex.offset.x = Math.sin(swimTime*0.25)*0.05; }
+
+  // rocks, coral, kelp and the far ridge stream past and recycle
+  worldProps.forEach(p=>{
+    const parallax = p.kind==="backdrop" ? 0.35 : 1;
+    p.mesh.position.z += flow*dt*parallax;
+    if(p.kind==="kelp"){
+      p.mesh.rotation.z = Math.sin(swimTime*0.8+p.phase)*0.14;
+    }
+    if(p.mesh.position.z > 14){
+      p.mesh.position.z -= PROP_DEPTH;
+      p.mesh.position.x = p.kind==="backdrop" ? (Math.random()<0.5?-1:1)*(45+Math.random()*70) : (Math.random()-0.5)*(p.kind==="ridge"?60:90);
+    }
+  });
+
+  // light shafts drift past too
+  godrays.forEach(r=>{
+    r.mesh.position.z += flow*dt*0.75;
+    r.mesh.rotation.z += Math.sin(swimTime*0.3+r.phase)*0.0006;
+    if(r.mesh.position.z > 16){
+      r.mesh.position.z -= PROP_DEPTH;
+      r.mesh.position.x = (Math.random()-0.5)*50;
+    }
+  });
+
+  // bubbles rise and also stream backwards
+  bubbles.forEach(b=>{
+    b.sprite.position.y += b.speed*dt;
+    b.sprite.position.x += Math.sin(swimTime*1.5+b.wobble)*dt*0.3;
+    b.sprite.position.z += flow*dt;
+    if(b.sprite.position.y > 11 || b.sprite.position.z > 12){
+      b.sprite.position.y = -7;
+      b.sprite.position.x = (Math.random()-0.5)*26;
+      b.sprite.position.z = -20-Math.random()*45;
+    }
+  });
+}
+
+/* Returns null if clear, otherwise how squarely the shark struck:
+   edgeness 0 = dead centre (full stop), 1 = just clipping the edge (a graze). */
+function testSolid(px, radiusX, botY, topY){
+  const dx = px - sharkPos.x;
+  const adx = Math.abs(dx);
+  if(adx >= radiusX) return null;
+  const bot = botY - 0.8, top = topY + 0.8;
+  if(sharkPos.y <= bot || sharkPos.y >= top) return null;
+
+  const lateralFrac = adx / radiusX;                       // how off-centre sideways
+  const vCentre = (top + bot) / 2;
+  const vHalf   = (top - bot) / 2;
+  const vertFrac = vHalf > 0 ? Math.abs(sharkPos.y - vCentre) / vHalf : 0;
+
+  // whichever axis we're closest to slipping past on decides the graze
+  return { dx, edgeness: Math.max(lateralFrac, vertFrac) };
+}
+
+function resolveBlocking(dt){
+  blocked = false;
+  blockStrength = 0;
+  blockDir = 0;
+  if(blockCool > 0) blockCool -= dt;
+  if(goldRushTimer > 0) return;             // Gold Rush smashes straight through
+
+  let hitSomething = null, dmg = 0, best = null, bestObj = null, bestR = 0;
+
+  // --- solid scenery (boulders / coral / rock outcrops) ---
+  for(let i=0;i<worldProps.length;i++){
+    const p = worldProps[i];
+    if(!p.solidR) continue;
+    const pz = p.mesh.position.z;
+    // contact starts when the prop's near face reaches the shark's nose
+    if((pz + p.solidR) < SHARK_NOSE_Z || (pz - p.solidR) > SHARK_TAIL_Z) continue;
+    const hasTop = p.mesh.userData && p.mesh.userData.topY !== undefined;
+    const topY = hasTop ? p.mesh.userData.topY : (p.mesh.position.y + p.solidR);
+    const botY = hasTop ? (p.mesh.position.y - 0.6) : (p.mesh.position.y - p.solidR);
+    const r = testSolid(p.mesh.position.x, p.solidR + 0.9, botY, topY);
+    if(r && (!best || r.edgeness < best.edgeness)){
+      best = r;
+      hitSomething = p.mesh.position.clone();
+      dmg = Math.round((p.dmg || 10) * (selectedShark.perk==="armor"?0.8:1));
+      bestObj = p.mesh; bestR = p.solidR;
+    }
+  }
+
+  // --- obstacle entities (pillars / mines / hooks) ---
+  for(let i=0;i<entities.length;i++){
+    const ent = entities[i];
+    const def = ENTITY_TYPES[ent.type];
+    if(!def.obstacle) continue;
+    if((ent.z + def.radius) < SHARK_NOSE_Z || (ent.z - def.radius) > SHARK_TAIL_Z) continue;
+    let botY, topY, rx;
+    if(ent.type==="reef_pillar"){ rx = def.radius+0.9; botY = ent.y-5.5; topY = ent.y+5.5; }
+    else if(ent.type==="hook_line"){ rx = def.radius+0.8; botY = ent.y-1.2; topY = ent.y+12; }
+    else { rx = def.radius+0.8; botY = ent.y-def.radius; topY = ent.y+def.radius; }
+    const r = testSolid(ent.x, rx, botY, topY);
+    if(r && (!best || r.edgeness < best.edgeness)){
+      best = r;
+      hitSomething = ent.sprite.position.clone();
+      dmg = Math.round(def.damage * (selectedShark.perk==="armor"?0.8:1));
+      bestObj = ent; bestR = def.radius;
+    }
+  }
+
+  if(!best) return;
+
+  blockDir = Math.sign(best.dx) || 1;
+
+  /* GRADED RESPONSE
+     A square hit stops you dead. A glancing contact only slows you and
+     deflects you around the obstacle, so side bumps stay survivable. */
+  const GRAZE_START = 0.45;                 // beyond this you start slipping past
+  if(best.edgeness >= GRAZE_START){
+    // scrape: 1.0 at the graze threshold down to ~0 at the very edge
+    const t = (best.edgeness - GRAZE_START) / (1 - GRAZE_START);
+    blockStrength = 0.55 * (1 - t);         // partial slowdown, never a full stop
+    blocked = false;                        // not "stuck" — you keep moving
+    // shove the shark clear so it slides around rather than grinding
+    sharkPos.x += -blockDir * dt * 7.5;
+    if(blockCool <= 0){
+      blockCool = 0.7;
+      const grazeDmg = Math.max(2, Math.round(dmg*0.3));
+      health -= grazeDmg;
+      lastDamageCause = p.kind==="coral" ? "coral" : (p.kind || "the reef");
+      goldRush = Math.max(0, goldRush - 6);
+      shake(0.25);
+      spawnPoof(hitSomething, "#ffc46e");
+      floatPopup("-"+grazeDmg+" HP", hitSomething, "damage");
+      updateHUD();
+      if(health<=0){ health=0; endRun(); }
+    }
+  } else {
+    // square-on impact: fully blocked until you steer off it
+    blocked = true;
+    blockStrength = 1;
+    // Settle the obstacle so its near face rests AGAINST the nose rather than
+    // inside the body — otherwise the shark visually sinks into it.
+    const restZ = SHARK_NOSE_Z - 0.9 - bestR;
+    if(bestObj){
+      if(bestObj.isObject3D){
+        if(bestObj.position.z > restZ) bestObj.position.z += (restZ - bestObj.position.z) * Math.min(1, dt*9);
+      } else if(bestObj.z !== undefined){
+        if(bestObj.z > restZ){
+          bestObj.z += (restZ - bestObj.z) * Math.min(1, dt*9);
+          bestObj.sprite.position.z = bestObj.z;
+        }
+      }
+    }
+    // nudge sideways a little so you can work your way free
+    sharkPos.x += -blockDir * dt * 2.2;
+    if(blockCool <= 0){
+      blockCool = 1.0;
+      health -= dmg;
+      lastDamageCause = bestObj && bestObj.type ? (ENTITY_TYPES[bestObj.type]?.name || "an obstacle") : "a rock formation";
+      resetCombo();
+      goldRush = Math.max(0, goldRush - 20);
+      flashDamage();
+      triggerHitReaction();
+      shake(0.75);
+      spawnPoof(hitSomething, "#ff9d6e");
+      floatPopup("-"+dmg+" HP", hitSomething, "damage");
+      announce("BLOCKED!", "#ff8a6e");
+      missionEvent("damage");
+      updateHUD();
+      if(health<=0){ health=0; endRun(); }
+    }
+  }
+}
+
+/* ===================== BEHAVIOUR STATE MACHINE =====================
+   Every creature runs a tiny state machine. States are chosen so that each
+   one READS within the few seconds a creature is on screen — schooling,
+   scattering, diving for cover, tiring, hunting. Nothing simulated off-screen
+   that the player will never witness.
+
+     CRUISE   drifting along, unaware
+     SCHOOL   pulling toward its shoal-mates and matching their heading
+     ALERT    has noticed a threat, turning away but not yet fleeing
+     PANIC    full-speed burst, jinking hard
+     HIDE     making a run for cover at the seabed
+     TIRED    stamina spent, flagging and catchable
+     HUNT     predators actively closing on the shark
+     PLAY     dolphins porpoising, purely for character
+*/
+
+const THREAT_TYPES = { orca:1, hammerhead:1 };   // things OTHER creatures fear
+
+function nearestThreat(ent){
+  // the shark is the default threat — Hammerhead's stealth perk makes prey
+  // notice it later by inflating the effective distance to the shark
+  const stealthMul = selectedShark.perk==="stealth" ? 1.3 : 1.0;
+  let bestD = Math.sqrt((ent.x-sharkPos.x)**2 + (ent.y-sharkPos.y)**2 + ent.z*ent.z) / stealthMul;
+  let tx = sharkPos.x, ty = sharkPos.y, tz = 0;
+  // ...but a passing orca scares the small fish too, which sells the food chain
+  for(let i=0;i<entities.length;i++){
+    const o = entities[i];
+    if(o === ent || !THREAT_TYPES[o.type]) continue;
+    const d = Math.sqrt((ent.x-o.x)**2 + (ent.y-o.y)**2 + (ent.z-o.z)**2);
+    if(d < bestD){ bestD = d; tx = o.x; ty = o.y; tz = o.z; }
+  }
+  return { d: bestD, x: tx, y: ty, z: tz };
+}
+
+function schoolInfluence(ent, dt){
+  // pull toward shoal-mates of the same species and match their heading
+  let cx=0, cy=0, hx=0, hy=0, n=0, sepX=0, sepY=0;
+  for(let i=0;i<entities.length;i++){
+    const o = entities[i];
+    if(o === ent || o.type !== ent.type) continue;
+    const d = Math.hypot(o.x-ent.x, o.y-ent.y, o.z-ent.z);
+    if(d > 9) continue;
+    cx += o.x; cy += o.y;
+    hx += Math.sin(o.hdg); hy += Math.cos(o.hdg);
+    if(d < 1.9 && d > 0.01){                       // separation: don't overlap
+      sepX += (ent.x-o.x)/d; sepY += (ent.y-o.y)/d;
+    }
+    n++;
+  }
+  if(!n) return false;
+  cx/=n; cy/=n;
+  ent.x  += ((cx-ent.x) * 0.55 + sepX*1.4) * dt;   // cohesion + separation
+  ent.vy += ((cy-ent.y) * 0.5  + sepY*1.2) * dt;
+  const avgHdg = Math.atan2(hx/n, hy/n);           // alignment
+  let d = avgHdg - ent.hdg;
+  while(d> Math.PI) d -= Math.PI*2;
+  while(d<-Math.PI) d += Math.PI*2;
+  ent.hdg += d * Math.min(1, dt*1.5);
+  return true;
+}
+
+function setState(ent, st){
+  if(ent.state === st) return;
+  ent.state = st;
+  ent.stateT = 0;
+}
+
+function updateBehaviour(ent, dt, def){
+  const P = ent.profile;
+  if(ent.state === undefined){ ent.state = "CRUISE"; ent.stateT = 0; }
+  ent.stateT += dt;
+
+  // inert things never think
+  if(def.obstacle || P.dir === "static" && !P.alert){ ent.state = "CRUISE"; return P.cruise; }
+
+  const T = nearestThreat(ent);
+  const dxT = ent.x - T.x, dyT = ent.y - T.y;
+  const isPredator = (ent.type === "orca");
+  const canSchool  = (ent.type === "fish_small" || ent.type === "fish_colorful");
+
+  let want = P.cruise;
+
+  /* ---- transitions ---- */
+  if(isPredator){
+    setState(ent, T.d < P.alert ? "HUNT" : "CRUISE");
+  } else if(P.alert > 0){
+    if(ent.stam <= 0.02 && (ent.state === "PANIC" || ent.state === "HIDE")){
+      setState(ent, "TIRED");
+    } else if(T.d < P.alert * 0.5){
+      // very close: bolt, or dive for cover if there's seabed nearby
+      const wasPanicking = (ent.state === "PANIC");
+      setState(ent, (canSchool && Math.random() < 0.02 + dt) && ent.y > FLOOR_Y+2.5 ? "HIDE" : "PANIC");
+      if(ent.type==="squid_giant" && ent.state==="PANIC" && !wasPanicking) spawnInkCloud(ent);
+    } else if(T.d < P.alert){
+      setState(ent, "ALERT");
+    } else if(ent.state === "TIRED" && ent.stam > 0.55){
+      setState(ent, "CRUISE");
+    } else if(ent.state !== "TIRED"){
+      if((ent.type === "dolphin" || ent.type === "seal") && Math.random() < dt*0.2) setState(ent, "PLAY");
+      else if(ent.state !== "PLAY" || ent.stateT > 2.5) setState(ent, canSchool ? "SCHOOL" : "CRUISE");
+    }
+  }
+
+  /* ---- per-state behaviour ---- */
+  switch(ent.state){
+    case "SCHOOL":
+      want = P.cruise;
+      schoolInfluence(ent, dt);
+      ent.stam = Math.min(1, ent.stam + dt*0.35);
+      break;
+
+    case "ALERT":
+      // noticed something: speeds up a little and starts turning away
+      want = P.cruise * 1.5;
+      ent.hdg -= Math.sign(dxT || 1) * dt * P.lat * 0.5;
+      ent.stam = Math.min(1, ent.stam + dt*0.15);
+      break;
+
+    case "PANIC": {
+      want = P.sprint;
+      ent.stam = Math.max(0, ent.stam - dt/(P.stam||2));
+      const away = Math.sign(dxT || (Math.random()-0.5));
+      // hard jinking — a zig-zag rather than a smooth curve, so it reads as fright
+      const jink = Math.sin(swimTime*7 + ent.wob) * 0.6;
+      ent.hdg -= (away * 1.3 + jink) * dt * P.lat;
+      ent.hdg = Math.max(Math.PI*0.42, Math.min(Math.PI*1.58, ent.hdg));
+      ent.vy += Math.sign(dyT||1) * dt * P.lat * 0.6;
+      break;
+    }
+
+    case "HIDE":
+      // dive for the seabed and hug it
+      want = P.sprint * 0.9;
+      ent.stam = Math.max(0, ent.stam - dt/((P.stam||2)*1.3));
+      ent.vy -= dt * 3.2;
+      ent.hdg = Math.PI + (ent.hdg - Math.PI) * 0.9;
+      if(ent.y < FLOOR_Y + 1.6 && ent.stateT > 1.2) setState(ent, "TIRED");
+      break;
+
+    case "TIRED":
+      // spent: flagging, easy to catch — the payoff for a well-timed sprint
+      want = P.cruise * 0.75;
+      ent.stam = Math.min(1, ent.stam + dt*0.28);
+      ent.vy *= (1 - Math.min(1, dt*1.5));
+      break;
+
+    case "HUNT": {
+      // predators actively steer toward the shark
+      want = P.sprint;
+      const toward = Math.atan2(sharkPos.x - ent.x, -ent.z);
+      let d = toward - ent.hdg;
+      while(d> Math.PI) d -= Math.PI*2;
+      while(d<-Math.PI) d += Math.PI*2;
+      ent.hdg += d * Math.min(1, dt*0.9);
+      ent.vy += Math.sign(sharkPos.y - ent.y) * dt * 0.8;
+      break;
+    }
+
+    case "PLAY":
+      // dolphins porpoising: a rolling up-and-down arc
+      want = P.cruise * 1.2;
+      ent.vy += Math.cos(swimTime*3 + ent.wob) * dt * 4.5;
+      ent.hdg += Math.sin(swimTime*1.6 + ent.wob) * dt * 0.5;
+      if(ent.stateT > 3) setState(ent, "CRUISE");
+      break;
+
+    default: // CRUISE
+      want = P.cruise;
+      ent.stam = Math.min(1, ent.stam + dt*0.35);
+      ent.vy *= (1 - Math.min(1, dt*1.2));
+      if(canSchool) schoolInfluence(ent, dt);
+      break;
+  }
+  return want;
+}
+
+function updatePlaying(dt){
+  // steering
+  targetPos.x = pointerActive ? pointerX*6.5 : sharkPos.x + (0-sharkPos.x)*0.02;
+  targetPos.y = pointerActive ? (-pointerY*5)+3.5 : sharkPos.y;
+  const prevX = sharkPos.x, prevY = sharkPos.y;
+  sharkPos.x += (targetPos.x - sharkPos.x)*Math.min(1, dt*4);
+  sharkPos.y += (targetPos.y - sharkPos.y)*Math.min(1, dt*4);
+  sharkPos.y = Math.max(FLOOR_Y+1.2, Math.min(SURFACE_Y-1.0, sharkPos.y));
+
+  // Sharp turn detection: how fast the shark's actual velocity direction is
+  // changing, not just how far from centre it is — this is what makes a
+  // real evasive cut trigger the swish rather than gentle drifting.
+  const vx = (sharkPos.x-prevX)/Math.max(dt,0.0001);
+  const vy = (sharkPos.y-prevY)/Math.max(dt,0.0001);
+  const turnRate = Math.hypot(vx-prevVX, vy-prevVY) / Math.max(dt,0.0001);
+  turnSwishCool -= dt;
+  if(turnRate > 9 && turnSwishCool <= 0 && mode==="playing"){
+    const strength = Math.min(1, turnRate/22);
+    spawnTurnSwish(strength);
+    swishKick = strength;
+    turnSwishCool = 0.4;
+  }
+  swishKick *= Math.max(0, 1 - dt*4.5);
+  prevVX = vx; prevVY = vy;
+
+  // decide whether we're jammed against something, using this frame's position
+  resolveBlocking(dt);
+
+  const bank = (targetPos.x - sharkPos.x);
+  // when jammed the shark shudders in place and thrashes harder to break free
+  // pushed back slightly and nosing against the obstacle, without the jitter
+  blockPush += ((blockStrength * 1.5) - blockPush) * Math.min(1, dt*8);
+  // hit reaction: a sharp jerk backward and a head-up wince, fading fast
+  const flinchKick = hitFlinch*hitFlinch;   // eased — snaps then settles
+  shark.position.set(
+    sharkPos.x,
+    sharkPos.y + Math.sin(swimTime*4)*0.06 + flinchKick*0.35,
+    blockPush + flinchKick*0.9
+  );
+  shark.rotation.z = -bank*0.15 - Math.sign(vx-prevVX||1)*swishKick*0.35;
+  shark.rotation.x = (targetPos.y-sharkPos.y)*0.1 + blockPush*0.22 - flinchKick*0.3;
+  shark.rotation.y = Math.sin(swimTime*(sprintActive?11:6))*0.05;
+
+  if(tailUpper && tailLower){
+    const wagRate = blockStrength>0.7 ? 10 : (sprintActive ? 11 : 6);
+    const wag = Math.sin(swimTime*wagRate)*(blockStrength>0.7 ? 0.48 : (sprintActive?0.5:0.35)) + swishKick*0.5;
+    tailUpper.rotation.y = Math.PI/2 + wag;
+    tailLower.rotation.y = Math.PI/2 + wag;
+  }
+  if(pecL && pecR){
+    pecL.rotation.x = Math.sin(swimTime*4)*0.1;
+    pecR.rotation.x = -Math.sin(swimTime*4)*0.1;
+  }
+
+  // decay any active encounter mood kick (whale drift, orca tension, etc.)
+  camMoodY *= Math.max(0, 1 - dt*camMoodDecay);
+  camMoodFov *= Math.max(0, 1 - dt*camMoodDecay);
+
+  const fovTarget = (sprintActive ? 72 : 62) + camMoodFov;
+  camera.fov += (fovTarget - camera.fov) * Math.min(1, dt*3);
+  camera.updateProjectionMatrix();
+  const camTarget = Math.min(sharkPos.y+1.6, SURFACE_Y-0.8);
+  camY += (camTarget - camY) * Math.min(1, dt*3);
+  if(shakeAmt > 0){ shakeAmt = Math.max(0, shakeAmt - dt*3.2); }
+  const shX = shakeAmt ? (Math.random()-0.5)*shakeAmt*1.1 : 0;
+  const shY = shakeAmt ? (Math.random()-0.5)*shakeAmt*1.1 : 0;
+  camera.position.set(sharkPos.x*0.4 + shX, camY + shY + camMoodY, 7.5);
+  camera.lookAt(sharkPos.x*0.6, camY-0.9, -30);
+
+  updateSharkHpBar();
+  updateSharkShadow();
+
+  if(dolphinBoostTimer>0){ dolphinBoostTimer -= dt; }
+
+  // ---- shark sprint / stamina ----
+  sprintActive = boosting && stamina > 1;
+  if(sprintActive){
+    stamina = Math.max(0, stamina - dt*34);   // same for every shark now
+  } else {
+    stamina = Math.min(100, stamina + dt*19);
+  }
+  // ---- HUNGER: the pressure that drives the whole game ----
+  // Health constantly drains, so you must keep hunting to stay alive.
+  const hungerRate = (1.05 + difficulty*0.35 + (sprintActive ? 0.85 : 0));
+  health -= hungerRate * dt;
+  if(health <= 0){ health = 0; lastDamageCause = "hunger"; endRun(); return; }
+
+  // ---- GOLD RUSH ----
+  if(goldRushTimer > 0){
+    goldRushTimer -= dt;
+    if(goldRushTimer <= 0){ goldRushTimer = 0; endGoldRush(); }
+  }
+
+  // ---- difficulty ramp over the dive ----
+  difficulty = 1 + (1 - timeLeft/RUN_SECONDS)*2.2;
+
+  const sprintMul = sprintActive ? SHARK_SPRINT : 1;
+  let speed = forwardSpeed * sprintMul * (dolphinBoostTimer>0?1.25:1) * (goldRushTimer>0?1.35:1) * (story._speedMult||1);
+  speed *= (1 - blockStrength);       // square hit = full stop, graze = partial slowdown
+  currentFlow = speed;
+  updateStamina();
+
+  spawnCooldown -= dt;
+  if(spawnCooldown<=0){
+    spawnEntity(story);
+    const openingSpawnBoost = 1 + Math.max(0, 1 - (RUN_SECONDS-timeLeft)/18)*0.8;
+    spawnCooldown = (0.45 + Math.random()*0.4) / difficulty / openingSpawnBoost;
+  }
+
+  entities.slice().forEach(ent=>{
+    const def = ENTITY_TYPES[ent.type];
+
+    /* ---- behaviour + speed --------------------------------------------
+       The state machine decides what this creature is trying to do; speeds
+       are true world speeds, so what the player sees is the difference
+       between the shark's pace and theirs. */
+    const want = updateBehaviour(ent, dt, def);
+
+    // ease toward the wanted speed (acceleration, not teleporting)
+    ent.ownV += (want - ent.ownV) * Math.min(1, dt*2.4);
+
+    // resolve heading into motion relative to the shark
+    ent.vz = Math.cos(ent.hdg) * ent.ownV;   // + closes on you, - runs ahead
+    ent.vx = Math.sin(ent.hdg) * ent.ownV;
+
+    ent.z += (speed + ent.vz)*dt;
+    ent.x += ent.vx*dt;
+    ent.y += ent.vy*dt;
+    ent.y = Math.max(FLOOR_Y+0.5, Math.min(SURFACE_Y-0.4, ent.y));
+
+    // --- swim animation -------------------------------------------------
+    const bob = Math.sin(swimTime*2.1+ent.wob*1.3)*0.18;
+    ent.sprite.position.set(ent.x, ent.y+bob, ent.z);
+
+    // Real 3D models, so they can genuinely turn to face where they're going.
+    // Models are built facing -Z; this points that axis along the velocity.
+    const spd = Math.hypot(ent.vx, ent.vz);
+    if(spd > 0.05){
+      const targetYaw = Math.atan2(-ent.vx, -ent.vz);
+      let d = targetYaw - ent.sprite.rotation.y;
+      while(d >  Math.PI) d -= Math.PI*2;
+      while(d < -Math.PI) d += Math.PI*2;
+      ent.sprite.rotation.y += d * Math.min(1, dt*4);        // ease into turns
+    }
+    if(ent.state === "TIRED"){
+      ent.sprite.rotation.z = Math.sin(swimTime*0.9+ent.wob)*0.05 + 0.22;  // listing, worn out
+    } else if(ent.state === "PANIC"){
+      ent.sprite.rotation.z = Math.sin(swimTime*7+ent.wob)*0.35;           // hard banking
+    } else if(ent.state === "PLAY"){
+      ent.sprite.rotation.z = Math.sin(swimTime*3+ent.wob)*0.45;           // rolling porpoise
+    } else {
+      ent.sprite.rotation.z = Math.sin(swimTime*1.4+ent.wob)*0.07;
+    }
+
+    animateCreature(ent, swimTime);
+
+    /* ---- world-life flourishes -------------------------------------- */
+    ent.trailT = (ent.trailT||0) - dt;
+    if(ent.trailT <= 0){
+      if(ent.type==="boat" && !ent.anchored){
+        // wake widens and thickens with engine speed; anchored boats leave none
+        const boatSpeed = ent.ownV || 0;
+        if(boatSpeed > 0.3){
+          spawnTrail(
+            ent.x - Math.sin(ent.hdg)*1.6, ent.y-0.15, ent.z - Math.cos(ent.hdg)*1.6,
+            { foam:true, size:0.5+boatSpeed*0.09, opacity:0.55, life:1.6, rise:0.05 }
+          );
+        }
+        ent.trailT = 0.16;
+      } else if((ent.type==="fish_small"||ent.type==="fish_colorful") && (ent.state==="PANIC"||ent.state==="HIDE")){
+        // a school in full flight kicks up a faint bubble trail
+        spawnTrail(ent.x, ent.y, ent.z+0.4, { size:0.06+Math.random()*0.06, opacity:0.35, life:0.6, rise:0.7 });
+        ent.trailT = 0.12;
+      } else if(ent.type==="dolphin"){
+        // constant light spray while cruising, a burst on each porpoise breach
+        if(ent.state==="PLAY" && Math.sin(swimTime*3+ent.wob) > 0.85){
+          spawnTrail(ent.x, ent.y+0.3, ent.z, { size:0.14+Math.random()*0.1, opacity:0.5, life:0.5, rise:0.9 });
+          ent.trailT = 0.18;
+        } else {
+          ent.trailT = 0.35;
+        }
+      } else if(ent.type==="diver" || ent.type==="swimmer"){
+        spawnTrail(ent.x, ent.y+0.5, ent.z, { size:0.06+Math.random()*0.05, opacity:0.4, life:0.9, rise:1.1 });
+        ent.trailT = 0.5;
+      } else if(ent.type!=="whale"){
+        ent.trailT = 0.4;
+      }
+    }
+    if(ent.type==="whale"){
+      ent.spoutT = (ent.spoutT===undefined?4+Math.random()*3:ent.spoutT) - dt;
+      if(ent.spoutT <= 0){
+        for(let k=0;k<5;k++){
+          spawnTrail(ent.x+(Math.random()-0.5)*0.4, ent.y+1.6, ent.z+(Math.random()-0.5)*0.4,
+            { size:0.15+Math.random()*0.12, opacity:0.6, life:0.7+Math.random()*0.3, rise:2.2+Math.random() });
+        }
+        ent.spoutT = 4.5 + Math.random()*3;
+      }
+    }
+
+    if(def.discoverOnSpawn && !ent.seenTriggered && ent.z > -40){
+      ent.seenTriggered = true;
+      triggerEntrance(ent, def.mood);
+      triggerMoodKick(def.mood);
+      discover(ent.type);
+    }
+
+    // ease the entrance scale-in for any creature currently arriving
+    if(ent.entranceT !== undefined && ent.entranceT < ent.entranceDur){
+      ent.entranceT += dt;
+      const p = Math.min(1, ent.entranceT/ent.entranceDur);
+      const eased = 1 - Math.pow(1-p, 3);   // ease-out cubic: quick start, soft settle
+      ent.sprite.scale.setScalar(0.05 + eased*0.95);
+    }
+
+    if(!ent.hit && !def.obstacle && ent.z > -2.4 && ent.z < 2.4){
+      const cdx = ent.sprite.position.x - sharkPos.x;
+      const cdy = ent.sprite.position.y - sharkPos.y;
+      let struck;
+      if(ent.type==="reef_pillar"){
+        // a pillar is a tall column: wide in X, but tall in Y
+        struck = Math.abs(cdx) < (def.radius+0.9) && cdy > -3.5 && cdy < 3.5;
+      } else if(ent.type==="hook_line"){
+        // the line runs all the way to the surface, so it's a vertical wall
+        struck = Math.abs(cdx) < (def.radius+0.8) && cdy > -1.5 && cdy < 12;
+      } else {
+        struck = Math.hypot(cdx,cdy) < (def.radius+0.9);
+      }
+      if(struck){
+        resolveHit(ent);
+        return;
+      }
+    }
+    // recycle once past the camera, drifted too wide, or fled too far ahead
+    if(ent.z > 8 || Math.abs(ent.x) > 42 || ent.z < -130){ removeEntity(ent); }
+  });
+
+  if(comboTimer>0){ comboTimer -= dt; if(comboTimer<=0) resetCombo(); }
+  updateTimedMissions(dt);
+
+  timeLeft -= dt;
+  updateHUD();
+  maybeTriggerFrenzy(1-(timeLeft/RUN_SECONDS));
+  if(timeLeft<=0){ timeLeft=0; endRun(); }
+}
+
+function updateFrenzy(dt){
+  frenzyObjects.forEach(o=>{
+    o.vy -= 9.8*dt;
+    o.x += o.vx*dt;
+    o.y += o.vy*dt;
+    o.sprite.position.set(o.x,o.y,-6);
+    o.sprite.material.rotation += dt*2;
+  });
+  frenzyObjects = frenzyObjects.filter(o=>{
+    if(o.y < -7){ scene.remove(o.sprite); return false; }
+    return true;
+  });
+}
+
+function updateEffects(dt){
+  effects = effects.filter(fx=>{
+    fx.life += dt;
+    const dur = fx.slow ? 1.6 : 0.4;
+    const t = fx.life/dur;
+    const base = fx.slow ? fx.sprite.scale.x : 0.3;
+    if(fx.slow){
+      fx.sprite.material.opacity = Math.max(0, 0.8*(1-t));
+      fx.sprite.position.y += dt*0.15;
+    } else {
+      fx.sprite.scale.set(0.3+t*1.2,0.3+t*1.2,1);
+      fx.sprite.material.opacity = Math.max(0,1-t);
+    }
+    if(t>=1){ scene.remove(fx.sprite); return false; }
+    return true;
+  });
+}
+
+/* ============================= FLOW CONTROL ============================= */
+
+function pickStoryAndTwist(){
+  story = { ...STORIES[Math.floor(Math.random()*STORIES.length)] };
+  twist = TWISTS[Math.floor(Math.random()*TWISTS.length)];
+  story._speedMult = (story.speedMult||1) * (twist.speedMult||1);
+}
+
+function startGame(){
+  pickStoryAndTwist();
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('storyScreen').classList.remove('hidden');
+  document.getElementById('storyName').textContent = story.name;
+  document.getElementById('storyTagline').textContent = story.tagline;
+  document.getElementById('storyTwist').textContent = twist.text;
+  document.getElementById('storyChip').textContent = (story.icon?story.icon+" ":"")+selectedShark.name+" · "+story.name;
+
+  setTimeout(()=>{
+    document.getElementById('storyScreen').classList.add('hidden');
+    beginRun();
+  }, 2600);
+}
+
+function beginRun(){
+  timeLeft = RUN_SECONDS;
+  MAX_HEALTH = selectedShark.maxHealth;
+  health = MAX_HEALTH;
+  SHARK_CRUISE = SHARK_CRUISE_BASE * selectedShark.speedMult;
+  SHARK_SPRINT = SHARK_SPRINT_BASE * selectedShark.speedMult;
+  forwardSpeed = SHARK_CRUISE;
+  stamina = 100; boosting = false; sprintActive = false;
+  goldRush = 0; goldRushTimer = 0; shakeAmt = 0; difficulty = 1;
+  blocked = false; blockCool = 0; blockPush = 0; blockStrength = 0;
+  prevVX = 0; prevVY = 0; turnSwishCool = 0.6; swishKick = 0;
+  hitStop = 0; hitFlinch = 0;
+  camMoodY = 0; camMoodFov = 0; camMoodDecay = 1;
+  document.body.classList.remove('goldrush');
+  setupMissions();
+  combo = 0; comboTimer = 0;
+  scores = { hunter:0, explorer:0, chaos:0 };
+  discoveriesThisRun = [];
+  const strip = document.getElementById('discoveryStrip');
+  if(strip) strip.innerHTML = "";
+  entities.forEach(removeEntity);
+  entities = [];
+  frenzyDone = false; frenzyActive = false;
+  spawnCooldown = 0.6;
+  sharkPos = {x:0,y:2.5}; targetPos = {...sharkPos};
+
+  initScene(story);
+  clock = new THREE.Clock();
+  mode = "playing";
+  updateHUD();
+  animate();
+}
+
+function buildRecapSentence(){
+  const parts = [];
+  parts.push("Today's dive: <b>"+story.name+"</b>.");
+
+  // how it ended
+  if(health <= 0){
+    const cause = lastDamageCause || "your injuries";
+    parts.push("The dive ended early — you didn't survive "+cause+".");
+  } else if(timeLeft <= 0){
+    const pct = health/MAX_HEALTH;
+    if(pct > 0.7) parts.push("You completed the full dive barely scratched.");
+    else if(pct > 0.35) parts.push("You completed the full dive, a little worse for wear.");
+    else parts.push("You made it to the end, but only just — you limped away with "+Math.round(health)+"/"+MAX_HEALTH+" health.");
+  }
+
+  // discoveries
+  if(discoveriesThisRun.length){
+    const rare = discoveriesThisRun.map(id=>ENTITY_TYPES[id]).filter(d=>d && d.rare);
+    if(rare.length){
+      parts.push("You discovered "+discoveriesThisRun.length+" new species, including your first <b>"+rare[rare.length-1].name+"</b>.");
+    } else {
+      const last = ENTITY_TYPES[discoveriesThisRun[discoveriesThisRun.length-1]];
+      parts.push("You discovered "+discoveriesThisRun.length+" new species, including a <b>"+last.name+"</b>.");
+    }
+  } else {
+    parts.push("Nothing new caught your eye this time — try a different story for fresh discoveries.");
+  }
+
+  // missions
+  const done = missions.filter(m=>m.done).length;
+  if(done === missions.length) parts.push("A perfect dive — all "+done+" missions complete.");
+  else if(done === 0) parts.push("None of today's missions came together.");
+  else parts.push("You completed "+done+" of "+missions.length+" missions.");
+
+  return parts.join(" ");
+}
+
+function endRun(){
+  mode = "end";
+  if(hpBarEl) hpBarEl.classList.remove('visible');
+  saveJournal();
+  const best = RANKS.reduce((a,b)=> scores[b.key]>scores[a.key]?b:a, RANKS[0]);
+  document.getElementById('rankTitle').textContent = best.title;
+  document.getElementById('finalHunter').textContent = scores.hunter.toLocaleString();
+  document.getElementById('finalExplorer').textContent = scores.explorer.toLocaleString();
+  document.getElementById('finalChaos').textContent = scores.chaos.toLocaleString();
+  const totalEl = document.getElementById('finalTotal');
+  if(totalEl) totalEl.textContent = (scores.hunter+scores.explorer+scores.chaos).toLocaleString();
+
+  document.getElementById('recapText').innerHTML = buildRecapSentence();
+
+  let factHtml = "";
+  if(discoveriesThisRun.length){
+    const pick = discoveriesThisRun[discoveriesThisRun.length-1];
+    const def = ENTITY_TYPES[pick];
+    factHtml = "<b>💡 "+def.name+".</b> "+def.fact;
+  }
+  document.getElementById('finalFact').innerHTML = factHtml;
+  document.getElementById('endScreen').classList.remove('hidden');
+}
+
+/* ============================= JOURNAL UI ============================= */
+
+function openJournal(){
+  const grid = document.getElementById('journalGrid');
+  grid.innerHTML = "";
+  const keys = Object.keys(ENTITY_TYPES);
+  let count=0;
+  keys.forEach(k=>{
+    const def = ENTITY_TYPES[k];
+    const known = sessionJournal.has(k);
+    if(known) count++;
+    const cell = document.createElement('div');
+    cell.className = "jcell"+(known?"":" locked");
+    cell.innerHTML = (known?def.emoji:"❓") + "<span class='jname'>"+(known?def.name:"???")+"</span>";
+    cell.onclick = ()=>{
+      const detail = document.getElementById('journalDetail');
+      if(!known){ detail.classList.remove('show'); return; }
+      detail.innerHTML = "<b>"+def.name+"</b><br>"+def.fact;
+      detail.classList.add('show');
+    };
+    grid.appendChild(cell);
+  });
+  document.getElementById('journalCount').textContent = count+" / "+keys.length+" discovered";
+  document.getElementById('journalDetail').classList.remove('show');
+  document.getElementById('journalScreen').classList.remove('hidden');
+}
+
+/* ============================= BOOT ============================= */
+
+function updateStamina(){
+  const bar = document.getElementById('staminabar');
+  const btn = document.getElementById('boostBtn');
+  if(bar) bar.style.width = stamina+"%";
+  if(btn){
+    btn.classList.toggle('on', sprintActive);
+    btn.classList.toggle('empty', stamina < 2);
+  }
+}
+
+(function wireBoost(){
+  const btn = document.getElementById('boostBtn');
+  const on  = e=>{ e.preventDefault(); e.stopPropagation(); boosting = true; };
+  const off = e=>{ e.preventDefault(); e.stopPropagation(); boosting = false; };
+  btn.addEventListener('pointerdown', on);
+  btn.addEventListener('pointerup', off);
+  btn.addEventListener('pointerleave', off);
+  btn.addEventListener('pointercancel', off);
+  window.addEventListener('keydown', e=>{ if(e.key==="Shift"||e.code==="Space") boosting = true; });
+  window.addEventListener('keyup',   e=>{ if(e.key==="Shift"||e.code==="Space") boosting = false; });
+})();
+
+const SHARK_EMOJI = { reef:"🦈", mako:"🐬", bull:"🦈", hammer:"🦈", tiger:"🐅" };
+const PERK_TEXT = {
+  armor:  "PERK: Takes 20% less damage from every collision.",
+  stealth:"PERK: Prey notices you ~30% later — sneak in close before it bolts.",
+  chaos:  "PERK: Chaos kills (boats, divers, swimmers) score +50% and fill Gold Rush faster.",
+  speed:  "PERK: Highest cruise & sprint speed in the ocean.",
+  null:   "PERK: None — balanced across the board."
+};
+
+function renderSharkPicker(){
+  const grid = document.getElementById('sharkGrid');
+  grid.innerHTML = SHARK_TYPES.map(t=>
+    `<div class="scard${t.id===selectedShark.id?' picked':''}" data-id="${t.id}">
+       <span class="semoji">${SHARK_EMOJI[t.id]||"🦈"}</span>
+       <span class="sname">${t.name}</span>
+     </div>`
+  ).join('');
+  [...grid.children].forEach(c=>{
+    c.onclick = ()=>{
+      selectedShark = SHARK_TYPES.find(t=>t.id===c.dataset.id);
+      renderSharkPicker();
+      renderSharkDetail();
+    };
+  });
+  renderSharkDetail();
+}
+
+function renderSharkDetail(){
+  document.getElementById('sharkTagline').textContent = selectedShark.tag;
+  const st = selectedShark.stats;
+  const rows = [
+    ["Speed", st.speed], ["Health", st.health], ["Special", st.special]
+  ];
+  document.getElementById('sharkStats').innerHTML =
+    rows.map(([label,val])=>
+      `<div class="stat-row"><span class="stat-label">${label}</span>
+        <div class="stat-bar"><div class="stat-fill" style="width:${val*20}%"></div></div></div>`
+    ).join('') +
+    `<div class="stat-perk">${PERK_TEXT[selectedShark.perk]}</div>`;
+}
+
+document.getElementById('chooseSharkBtn').onclick = ()=>{
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('sharkScreen').classList.remove('hidden');
+  renderSharkPicker();
+};
+
+document.getElementById('startBtn').onclick = ()=>{
+  document.getElementById('sharkScreen').classList.add('hidden');
+  startGame();
+};
+document.getElementById('diveAgainBtn').onclick = ()=>{
+  document.getElementById('endScreen').classList.add('hidden');
+  document.getElementById('sharkScreen').classList.remove('hidden');
+  renderSharkPicker();
+};
+document.getElementById('journalBtnStart').onclick = openJournal;
+document.getElementById('journalBtnEnd').onclick = openJournal;
+document.getElementById('journalCloseBtn').onclick = ()=> document.getElementById('journalScreen').classList.add('hidden');
+
+initGlowLayer();
+loadJournal();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch((e) => console.warn("SW registration failed:", e));
+  });
+}
+</script>
+</body>
+</html>
