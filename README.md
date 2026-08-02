@@ -94,6 +94,20 @@ update, this tag is the fastest way to confirm a device has actually picked
 up the new version versus still running an old cached one. If it ever shows
 "no service worker controlling this page yet," reload the page once.
 
+**If you push an update and still see the old version:** as of this build,
+the page shell (`index.html`) is fetched network-first and a brand-new
+service worker forces an automatic reload the moment it takes over — so
+this should now be rare. If it still happens:
+1. Fully close the app (swipe it away in your app switcher — backgrounding
+   it isn't enough) and reopen it. This is what triggers the browser to
+   actually check for a new `sw.js`.
+2. GitHub Pages caches files for a few minutes at the CDN level, so if you
+   just pushed, wait ~5-10 minutes and try step 1 again.
+3. Last resort: clear site data for the page's URL in your browser's
+   settings (Safari: Settings → Safari → Advanced → Website Data; Chrome:
+   site settings → Clear & reset). This wipes everything and forces a
+   completely clean fetch.
+
 ## Notes
 
 - Three.js and the Google Fonts used by the game load from public CDNs

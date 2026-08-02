@@ -6,7 +6,7 @@
    IMPORTANT: bump CACHE_NAME any time you update the game files and push a
    new version. Browsers keep old service workers running until all tabs are
    closed, and the cache name is what forces a clean break to the new files. */
-const CACHE_NAME = "shark-life-v6";
+const CACHE_NAME = "shark-life-v7";
 
 // Same-origin files that must always be available offline.
 const PRECACHE_URLS = [
@@ -46,6 +46,27 @@ self.addEventListener("fetch", (event) => {
   // Only handle simple GETs — POST/PUT etc. always go straight to network.
   if (event.request.method !== "GET") return;
 
+  // Page navigations (loading/reloading index.html itself) go NETWORK-FIRST.
+  // This app is under active iteration, so "always show the latest version"
+  // matters more here than the instant-load benefit of cache-first — that's
+  // what was causing "I updated sw.js but still see the old page": the shell
+  // itself was being served from cache before the new version ever had a
+  // chance to load.
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request, { cache: "no-store" })
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((c) => c || caches.match("./index.html")))
+    );
+    return;
+  }
+
+  // Everything else (icons, manifest, the Three.js CDN script, fonts) stays
+  // cache-first — these rarely change, so instant-load wins here.
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const networkFetch = fetch(event.request)

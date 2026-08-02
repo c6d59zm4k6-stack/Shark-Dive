@@ -3681,9 +3681,15 @@ if ("serviceWorker" in navigator) {
       }
     });
     navigator.serviceWorker.ready.then(reportVersion);
-    // controllerchange fires when a new SW takes over an already-open page —
-    // re-check so the tag updates without needing a manual reload
-    navigator.serviceWorker.addEventListener('controllerchange', reportVersion);
+    // controllerchange fires when a new SW takes over an already-open page.
+    // Reload outright — that's the only way the actual page content (not
+    // just this version tag) reflects the update. Guarded so it can only
+    // fire once, since some browsers fire this event more than once.
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      reportVersion();
+      if(!reloaded){ reloaded = true; window.location.reload(); }
+    });
   });
 }
 </script>
