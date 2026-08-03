@@ -1403,16 +1403,19 @@ function buildShark(){
   shark.add(dorsal);
 
   // tail fin (two blades meeting at the rear, -Z is front so tail is at +Z)
+  // rotation.z sign kept corrected from the original (verified sweep-
+  // direction bug fix — the fin tips were pointing toward the nose instead
+  // of sweeping up/down-and-back away from the body)
   tailUpper = new THREE.Mesh(new THREE.ConeGeometry(0.55,1.8,3), finMat);
   tailUpper.scale.set(0.45,1,0.2);
   tailUpper.position.set(0,0.55,2.55);
-  tailUpper.rotation.set(0, Math.PI/2, -0.55);
+  tailUpper.rotation.set(0, Math.PI/2, 0.55);
   shark.add(tailUpper);
 
   tailLower = new THREE.Mesh(new THREE.ConeGeometry(0.4,1.1,3), finMat);
   tailLower.scale.set(0.45,1,0.2);
   tailLower.position.set(0,-0.3,2.5);
-  tailLower.rotation.set(0, Math.PI/2, 0.65);
+  tailLower.rotation.set(0, Math.PI/2, Math.PI - 0.65);
   shark.add(tailLower);
 
   // pectoral fins - thin blades angled down/out
@@ -2750,15 +2753,59 @@ function sliceFrenzyObject(o){
 /* ============================= INPUT ============================= */
 
 let tiltReadoutEl = null;
+// Shapes a raw -1..1 tilt reading into a friendlier response curve:
+// a small deadzone kills sensor jitter around neutral, then an expo curve
+// (exponent > 1) compresses small tilts even smaller — so the middle of
+// the tilt range gives fine, gradual control — while still reaching a
+// full ±1 at the edges, so max lean still gives max turn.
+function shapeTilt(v){
+  const DEADZONE = 0.05;
+  const a = Math.abs(v);
+  if(a < DEADZONE) return 0;
+  const scaled = Math.min(1, (a - DEADZONE) / (1 - DEADZONE));
+  return Math.sign(v) * Math.pow(scaled, 1.6);
+}
+// beta/gamma are reported relative to the DEVICE's own portrait frame, not
+// the screen. This game supports landscape play (the HUD, FOV and steer
+// range all adjust for it) — but held sideways, a physical left-right roll
+// no longer changes gamma, it changes beta instead, and vice versa. That's
+// exactly what was happening: rolling the phone left/right was landing on
+// the Y mapping (jumping top-to-bottom) instead of the X mapping (so X
+// barely moved). Rotating by the screen's orientation angle first fixes
+// that, regardless of which way the phone is held.
+function getScreenAngle(){
+  if(screen.orientation && typeof screen.orientation.angle === "number") return screen.orientation.angle;
+  if(typeof window.orientation === "number") return window.orientation;
+  return 0;
+}
 function onDeviceTilt(e){
   if(e.beta===null || e.gamma===null) return;
   // First reading after enabling becomes "neutral" — however you're
   // actually holding the phone at that moment — so there's no need to
   // hold it flat or at any specific real-world angle.
   if(tiltBaseBeta===null){ tiltBaseBeta = e.beta; tiltBaseGamma = e.gamma; }
-  const SENS = 22; // degrees of tilt from neutral for full deflection
-  tiltX = Math.max(-1, Math.min(1, (e.gamma - tiltBaseGamma) / SENS));
-  tiltY = Math.max(-1, Math.min(1, (e.beta  - tiltBaseBeta ) / SENS));
+  const dBeta  = e.beta  - tiltBaseBeta;
+  const dGamma = e.gamma - tiltBaseGamma;
+  const angle = getScreenAngle();
+  let dx, dy;
+  if(angle === 90){ dx = dBeta; dy = -dGamma; }
+  else if(angle === -90 || angle === 270){ dx = -dBeta; dy = dGamma; }
+  else if(angle === 180){ dx = -dGamma; dy = -dBeta; }
+  else { dx = dGamma; dy = dBeta; }               // 0 — upright portrait
+  // Widened from 22° — a bigger tilt is now needed for full deflection,
+  // which leaves more room in the comfortable middle of the range for
+  // small, precise corrections instead of every wobble reading as a
+  // hard swing (this, plus the curve above, is what fixes "too coarse").
+  const SENS = 34;
+  const rawX = Math.max(-1, Math.min(1, dx / SENS));
+  const rawY = Math.max(-1, Math.min(1, dy / SENS));
+  const shapedX = shapeTilt(rawX), shapedY = shapeTilt(rawY);
+  // Low-pass filter: blend toward the shaped reading rather than snapping
+  // to it outright, so a single noisy sensor sample can't jerk the target
+  // in one frame — this is what fixes "too sharp".
+  const SMOOTH = 0.25;
+  tiltX += (shapedX - tiltX) * SMOOTH;
+  tiltY += (shapedY - tiltY) * SMOOTH;
   if(tiltReadoutEl) tiltReadoutEl.textContent = "β "+e.beta.toFixed(0)+"° γ "+e.gamma.toFixed(0)+"°";
 }
 
@@ -3032,6 +3079,10 @@ function resolveBlocking(dt){
   if(goldRushTimer > 0) return;             // Gold Rush smashes straight through
 
   let hitSomething = null, dmg = 0, best = null, bestObj = null, bestR = 0, bestKind = null;
+  // full box geometry of the winning hit, captured so the block response
+  // below can clamp the shark's actual position out of it — edgeness alone
+  // tells you HOW squarely you hit something, not WHERE its box actually is.
+  let bestCX = 0, bestCY = 0, bestRadiusX = 0, bestBotY = 0, bestTopY = 0;
 
   // --- solid scenery (boulders / coral / rock outcrops) ---
   for(let i=0;i<worldProps.length;i++){
@@ -3043,12 +3094,15 @@ function resolveBlocking(dt){
     const hasTop = p.mesh.userData && p.mesh.userData.topY !== undefined;
     const topY = hasTop ? p.mesh.userData.topY : (p.mesh.position.y + p.solidR);
     const botY = hasTop ? (p.mesh.position.y - 0.6) : (p.mesh.position.y - p.solidR);
-    const r = testSolid(p.mesh.position.x, p.solidR + 0.9, botY, topY);
+    const radiusX = p.solidR + 0.9;
+    const r = testSolid(p.mesh.position.x, radiusX, botY, topY);
     if(r && (!best || r.edgeness < best.edgeness)){
       best = r;
       hitSomething = p.mesh.position.clone();
       dmg = Math.round((p.dmg || 10) * (selectedShark.perk==="armor"?0.8:1));
       bestObj = p.mesh; bestR = p.solidR; bestKind = p.kind;
+      bestCX = p.mesh.position.x; bestCY = p.mesh.position.y;
+      bestRadiusX = radiusX; bestBotY = botY; bestTopY = topY;
     }
   }
 
@@ -3068,6 +3122,8 @@ function resolveBlocking(dt){
       hitSomething = ent.sprite.position.clone();
       dmg = Math.round(def.damage * (selectedShark.perk==="armor"?0.8:1));
       bestObj = ent; bestR = def.radius; bestKind = def.name || ent.type;
+      bestCX = ent.x; bestCY = ent.y;
+      bestRadiusX = rx; bestBotY = botY; bestTopY = topY;
     }
   }
 
@@ -3117,6 +3173,22 @@ function resolveBlocking(dt){
     }
     // nudge sideways a little so you can work your way free
     sharkPos.x += -blockDir * dt * 2.2;
+
+    // Hard clamp: the nudge above is just a cosmetic shove and steering
+    // input every frame could out-pull it, letting a determined tilt push
+    // the shark straight through a boulder's centre over a few frames.
+    // Snap the shark back outside the box along whichever axis it's
+    // closest to escaping through, so a square hit is an actual wall.
+    const padBot = bestBotY - 0.8, padTop = bestTopY + 0.8;
+    const dxNow = sharkPos.x - bestCX;
+    const overlapX = bestRadiusX - Math.abs(dxNow);
+    const overlapY = Math.min(padTop - sharkPos.y, sharkPos.y - padBot);
+    if(overlapX < overlapY){
+      sharkPos.x = bestCX + (Math.sign(dxNow) || blockDir) * bestRadiusX;
+    } else {
+      sharkPos.y = (padTop - sharkPos.y) < (sharkPos.y - padBot) ? padTop : padBot;
+    }
+
     if(blockCool <= 0){
       blockCool = 1.0;
       health -= dmg;
