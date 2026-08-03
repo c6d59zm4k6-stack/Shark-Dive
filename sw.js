@@ -6,7 +6,7 @@
    IMPORTANT: bump CACHE_NAME any time you update the game files and push a
    new version. Browsers keep old service workers running until all tabs are
    closed, and the cache name is what forces a clean break to the new files. */
-const CACHE_NAME = "shark-life-v8";
+const CACHE_NAME = "shark-life-v9";
 
 // Same-origin files that must always be available offline.
 const PRECACHE_URLS = [
